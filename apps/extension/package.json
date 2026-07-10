@@ -1,0 +1,36 @@
+{
+  "name": "@booth-plus/extension",
+  "description": "BoothPlus browser extension",
+  "private": true,
+  "version": "3.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun x wxt",
+    "dev:firefox": "bun x wxt -b firefox",
+    "build": "bun x wxt build",
+    "build:firefox": "bun x wxt build -b firefox",
+    "zip": "bun x wxt zip",
+    "zip:firefox": "bun x wxt zip -b firefox",
+    "compile": "bun x tsc --noEmit",
+    "postinstall": "bun x wxt prepare"
+  },
+  "dependencies": {
+    "@tabler/icons-react": "3.35.0",
+    "@tailwindcss/vite": "4.1.17",
+    "@tanstack/react-query": "5.90.9",
+    "@webext-core/messaging": "2.3.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-toastify": "11.0.5",
+    "tailwindcss": "4.1.17"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "@types/react": "19.2.4",
+    "@types/react-dom": "19.2.3",
+    "@wxt-dev/module-react": "1.1.5",
+    "@wxt-dev/i18n": "0.2.4",
+    "typescript": "5.9.3",
+    "wxt": "0.20.11"
+  }
+}
