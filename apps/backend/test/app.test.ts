@@ -3,9 +3,18 @@ import { describe, expect, test } from "vitest";
 import { app } from "../src/app";
 import { isOriginAllowed, parseCorsOrigins } from "../src/cors";
 
+const unavailableDatabase = {
+  prepare: () => ({
+    bind: () => ({
+      first: async () => ({ isReady: 0 }),
+    }),
+  }),
+} as unknown as D1Database;
+
 const bindings: CloudflareBindings = {
   CORS_ORIGINS:
     "https://booth.pm,https://*.booth.pm,chrome-extension://hafbafjoecfjdlhjilpakabocglkaegj",
+  DB: unavailableDatabase,
 };
 
 const request = (path: string, init?: RequestInit) =>
@@ -31,6 +40,17 @@ describe("BoothPlus Worker", () => {
       statusCode: 404,
       error: "Not Found",
       message: "Not Found",
+    });
+  });
+
+  test("storage health returns 503 until D1 migrations are applied", async () => {
+    const response = await request("/api/health/storage");
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({
+      status: "unavailable",
+      service: "@booth-plus/backend",
+      storage: "cloudflare-d1",
     });
   });
 

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 
 import { isOriginAllowed, parseCorsOrigins } from "./cors";
+import { hasRequiredDatabaseSchema } from "./database";
 
 type WorkerEnvironment = {
   Bindings: CloudflareBindings;
@@ -29,6 +30,32 @@ app.get("/api/health", (context) =>
     runtime: "cloudflare-workers",
   }),
 );
+
+app.get("/api/health/storage", async (context) => {
+  try {
+    const isReady = await hasRequiredDatabaseSchema(context.env.DB);
+
+    return context.json(
+      {
+        status: isReady ? "ok" : "unavailable",
+        service: "@booth-plus/backend",
+        storage: "cloudflare-d1",
+      },
+      isReady ? 200 : 503,
+    );
+  } catch (error) {
+    console.error("D1 readiness check failed", error);
+
+    return context.json(
+      {
+        status: "unavailable",
+        service: "@booth-plus/backend",
+        storage: "cloudflare-d1",
+      },
+      503,
+    );
+  }
+});
 
 app.notFound((context) =>
   context.json(

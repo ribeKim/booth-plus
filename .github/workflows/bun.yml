@@ -31,6 +31,9 @@ jobs:
       - name: Check workspace
         run: bun run check
 
+      - name: Validate D1 migrations
+        run: bun run --filter @booth-plus/backend db:migrate:ci
+
       - name: Test backend in Workers runtime
         run: bun run --filter @booth-plus/backend test:worker
 
