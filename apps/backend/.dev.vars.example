@@ -1,0 +1,3 @@
+# Local-only overrides for `wrangler dev`.
+# Production-safe defaults live in wrangler.jsonc.
+CORS_ORIGINS=http://localhost:3000,https://booth.pm,https://*.booth.pm,chrome-extension://hafbafjoecfjdlhjilpakabocglkaegj

@@ -31,6 +31,9 @@ jobs:
       - name: Check workspace
         run: bun run check
 
+      - name: Test backend in Workers runtime
+        run: bun run --filter @booth-plus/backend test:worker
+
       - name: Build workspace
         run: bun run build
 

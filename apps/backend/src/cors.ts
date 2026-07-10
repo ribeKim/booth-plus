@@ -2,6 +2,12 @@ const wildcardOriginPattern = /^(https?):\/\/\*\.([a-z0-9.-]+)(?::(\d{1,5}))?$/i
 
 const normalizeExactOrigin = (origin: string): string => origin.replace(/\/$/, "");
 
+export const parseCorsOrigins = (value: string | undefined): string[] =>
+  (value ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 const matchesWildcardOrigin = (origin: string, pattern: string): boolean => {
   const match = wildcardOriginPattern.exec(pattern);
   if (!match) {

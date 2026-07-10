@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "booth-plus-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-10",
+  "minify": true,
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "CORS_ORIGINS": "https://booth.pm,https://*.booth.pm,chrome-extension://hafbafjoecfjdlhjilpakabocglkaegj"
+  }
+}

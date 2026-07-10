@@ -1,40 +1,42 @@
-import cors from "@fastify/cors";
-import Fastify, { type FastifyInstance } from "fastify";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
 
-import type { BackendConfig } from "./config.js";
-import { isOriginAllowed } from "./cors.js";
+import { isOriginAllowed, parseCorsOrigins } from "./cors";
 
-export type BuildAppOptions = Pick<BackendConfig, "corsOrigins" | "logLevel"> & {
-  logger?: boolean;
+type WorkerEnvironment = {
+  Bindings: CloudflareBindings;
 };
 
-export const buildApp = async ({
-  corsOrigins,
-  logLevel,
-  logger = true,
-}: BuildAppOptions): Promise<FastifyInstance> => {
-  const app = Fastify({
-    logger: logger ? { level: logLevel } : false,
-  });
-  await app.register(cors, {
-    allowedHeaders: ["Authorization", "Content-Type"],
+export const app = new Hono<WorkerEnvironment>();
+
+app.use("/api/*", async (context, next) => {
+  const allowedOrigins = parseCorsOrigins(context.env.CORS_ORIGINS);
+  const corsMiddleware = cors({
+    allowHeaders: ["Authorization", "Content-Type"],
+    allowMethods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
     maxAge: 86_400,
-    methods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
-    origin(origin, callback) {
-      if (!origin || isOriginAllowed(origin, corsOrigins)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(null, false);
-    },
+    origin: (origin) => (isOriginAllowed(origin, allowedOrigins) ? origin : null),
   });
 
-  app.get("/api/health", async () => ({
+  return corsMiddleware(context, next);
+});
+
+app.get("/api/health", (context) =>
+  context.json({
     status: "ok",
     service: "@booth-plus/backend",
-  }));
+    runtime: "cloudflare-workers",
+  }),
+);
 
-  return app;
-};
+app.notFound((context) =>
+  context.json(
+    {
+      statusCode: 404,
+      error: "Not Found",
+      message: "Not Found",
+    },
+    404,
+  ),
+);

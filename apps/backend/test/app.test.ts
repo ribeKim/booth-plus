@@ -1,80 +1,79 @@
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, expect, test } from "vitest";
 
-import { buildApp } from "../src/app.js";
-import { isOriginAllowed } from "../src/cors.js";
+import { app } from "../src/app";
+import { isOriginAllowed, parseCorsOrigins } from "../src/cors";
 
-test("GET /api/health reports that the backend is ready", async (context) => {
-  const app = await buildApp({
-    corsOrigins: [],
-    logger: false,
-    logLevel: "silent",
-  });
-  context.after(() => app.close());
+const bindings: CloudflareBindings = {
+  CORS_ORIGINS:
+    "https://booth.pm,https://*.booth.pm,chrome-extension://hafbafjoecfjdlhjilpakabocglkaegj",
+};
 
-  const response = await app.inject({
-    method: "GET",
-    url: "/api/health",
-  });
+const request = (path: string, init?: RequestInit) =>
+  app.request(`https://worker.test${path}`, init, bindings);
 
-  assert.equal(response.statusCode, 200);
-  assert.deepEqual(response.json(), {
-    status: "ok",
-    service: "@booth-plus/backend",
-  });
-});
+describe("BoothPlus Worker", () => {
+  test("GET /api/health reports the Worker runtime", async () => {
+    const response = await request("/api/health");
 
-test("unknown routes return Fastify's JSON 404 response", async (context) => {
-  const app = await buildApp({
-    corsOrigins: [],
-    logger: false,
-    logLevel: "silent",
-  });
-  context.after(() => app.close());
-
-  const response = await app.inject({
-    method: "GET",
-    url: "/api/unknown",
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "ok",
+      service: "@booth-plus/backend",
+      runtime: "cloudflare-workers",
+    });
   });
 
-  assert.equal(response.statusCode, 404);
-  assert.equal(response.json().error, "Not Found");
-});
+  test("unknown routes return a JSON 404 response", async () => {
+    const response = await request("/api/unknown");
 
-test("CORS preflight supports the extension's write methods", async (context) => {
-  const app = await buildApp({
-    corsOrigins: ["https://booth.pm", "https://*.booth.pm"],
-    logger: false,
-    logLevel: "silent",
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      statusCode: 404,
+      error: "Not Found",
+      message: "Not Found",
+    });
   });
-  context.after(() => app.close());
 
-  for (const method of ["PUT", "DELETE"]) {
-    const response = await app.inject({
+  test.each(["PUT", "DELETE"])("CORS preflight supports %s", async (method) => {
+    const response = await request("/api/comment/product-id", {
       method: "OPTIONS",
-      url: "/api/comment/product-id",
       headers: {
-        origin: "https://creator.booth.pm",
-        "access-control-request-headers": "authorization,content-type",
-        "access-control-request-method": method,
+        Origin: "https://creator.booth.pm",
+        "Access-Control-Request-Headers": "authorization,content-type",
+        "Access-Control-Request-Method": method,
       },
     });
 
-    assert.equal(response.statusCode, 204);
-    assert.equal(response.headers["access-control-allow-origin"], "https://creator.booth.pm");
-    assert.match(response.headers["access-control-allow-methods"] ?? "", new RegExp(`\\b${method}\\b`));
-    assert.match(response.headers["access-control-allow-headers"] ?? "", /Authorization/i);
-    assert.match(response.headers["access-control-allow-headers"] ?? "", /Content-Type/i);
-  }
+    expect(response.status).toBe(204);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://creator.booth.pm");
+    expect(response.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(method);
+    expect(response.headers.get("Access-Control-Allow-Headers")).toMatch(/Authorization/i);
+    expect(response.headers.get("Access-Control-Allow-Headers")).toMatch(/Content-Type/i);
+  });
+
+  test("CORS does not allow lookalike domains", async () => {
+    const response = await request("/api/health", {
+      headers: {
+        Origin: "https://booth.pm.evil.example",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
 });
 
-test("origin matching accepts BOOTH subdomains without accepting lookalike domains", () => {
-  const allowedOrigins = ["https://booth.pm", "https://*.booth.pm"];
+test("origin helpers parse bindings and safely match BOOTH subdomains", () => {
+  const allowedOrigins = parseCorsOrigins(
+    "https://booth.pm, https://*.booth.pm, chrome-extension://extension-id",
+  );
 
-  assert.equal(isOriginAllowed("https://booth.pm", allowedOrigins), true);
-  assert.equal(isOriginAllowed("https://creator.booth.pm", allowedOrigins), true);
-  assert.equal(isOriginAllowed("https://nested.creator.booth.pm", allowedOrigins), true);
-  assert.equal(isOriginAllowed("http://creator.booth.pm", allowedOrigins), false);
-  assert.equal(isOriginAllowed("https://evilbooth.pm", allowedOrigins), false);
-  assert.equal(isOriginAllowed("https://booth.pm.evil.example", allowedOrigins), false);
+  expect(isOriginAllowed("https://booth.pm", allowedOrigins)).toBe(true);
+  expect(isOriginAllowed("https://creator.booth.pm", allowedOrigins)).toBe(true);
+  expect(isOriginAllowed("https://nested.creator.booth.pm", allowedOrigins)).toBe(true);
+  expect(isOriginAllowed("chrome-extension://extension-id", allowedOrigins)).toBe(true);
+  expect(isOriginAllowed("http://creator.booth.pm", allowedOrigins)).toBe(false);
+  expect(isOriginAllowed("https://evilbooth.pm", allowedOrigins)).toBe(false);
+  expect(isOriginAllowed("https://booth.pm.evil.example", allowedOrigins)).toBe(false);
 });
