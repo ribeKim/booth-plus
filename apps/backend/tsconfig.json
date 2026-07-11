@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
@@ -9,14 +9,14 @@
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
+    "types": ["bun", "node"],
     "noEmit": true
   },
   "include": [
-    "worker-configuration.d.ts",
+    "scripts/**/*.ts",
     "src/**/*.ts",
     "test/**/*.ts",
     "vitest.config.ts",
-    "vitest.worker.config.ts"
+    "vitest.integration.config.ts"
   ]
 }

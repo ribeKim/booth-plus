@@ -1,69 +1,92 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import { isOriginAllowed, parseCorsOrigins } from "./cors";
-import { hasRequiredDatabaseSchema } from "./database";
+import { isOriginAllowed } from "./cors";
+import type { Database } from "./database";
 
-type WorkerEnvironment = {
-  Bindings: CloudflareBindings;
+export type LifecycleState = {
+  shuttingDown: boolean;
 };
 
-export const app = new Hono<WorkerEnvironment>();
+type AppDependencies = {
+  corsOrigins: readonly string[];
+  database: Pick<Database, "isReady">;
+  lifecycle?: LifecycleState;
+};
 
-app.use("/api/*", async (context, next) => {
-  const allowedOrigins = parseCorsOrigins(context.env.CORS_ORIGINS);
-  const corsMiddleware = cors({
-    allowHeaders: ["Authorization", "Content-Type"],
-    allowMethods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-    maxAge: 86_400,
-    origin: (origin) => (isOriginAllowed(origin, allowedOrigins) ? origin : null),
+export const createApp = ({
+  corsOrigins,
+  database,
+  lifecycle = { shuttingDown: false },
+}: AppDependencies): Hono => {
+  const app = new Hono();
+
+  app.use(
+    "/api/*",
+    cors({
+      allowHeaders: ["Authorization", "Content-Type"],
+      allowMethods: ["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS"],
+      credentials: true,
+      maxAge: 86_400,
+      origin: (origin) => (isOriginAllowed(origin, corsOrigins) ? origin : null),
+    }),
+  );
+
+  app.get("/api/health", (context) =>
+    context.json({
+      status: "ok",
+      service: "@booth-plus/backend",
+      runtime: "bun",
+    }),
+  );
+
+  app.get("/api/health/storage", async (context) => {
+    if (lifecycle.shuttingDown) {
+      return context.json(
+        {
+          status: "unavailable",
+          service: "@booth-plus/backend",
+          storage: "postgresql",
+        },
+        503,
+      );
+    }
+
+    try {
+      const isReady = await database.isReady();
+
+      return context.json(
+        {
+          status: isReady ? "ok" : "unavailable",
+          service: "@booth-plus/backend",
+          storage: "postgresql",
+        },
+        isReady ? 200 : 503,
+      );
+    } catch (error) {
+      console.error("PostgreSQL readiness check failed", error);
+
+      return context.json(
+        {
+          status: "unavailable",
+          service: "@booth-plus/backend",
+          storage: "postgresql",
+        },
+        503,
+      );
+    }
   });
 
-  return corsMiddleware(context, next);
-});
-
-app.get("/api/health", (context) =>
-  context.json({
-    status: "ok",
-    service: "@booth-plus/backend",
-    runtime: "cloudflare-workers",
-  }),
-);
-
-app.get("/api/health/storage", async (context) => {
-  try {
-    const isReady = await hasRequiredDatabaseSchema(context.env.DB);
-
-    return context.json(
+  app.notFound((context) =>
+    context.json(
       {
-        status: isReady ? "ok" : "unavailable",
-        service: "@booth-plus/backend",
-        storage: "cloudflare-d1",
+        statusCode: 404,
+        error: "Not Found",
+        message: "Not Found",
       },
-      isReady ? 200 : 503,
-    );
-  } catch (error) {
-    console.error("D1 readiness check failed", error);
+      404,
+    ),
+  );
 
-    return context.json(
-      {
-        status: "unavailable",
-        service: "@booth-plus/backend",
-        storage: "cloudflare-d1",
-      },
-      503,
-    );
-  }
-});
-
-app.notFound((context) =>
-  context.json(
-    {
-      statusCode: 404,
-      error: "Not Found",
-      message: "Not Found",
-    },
-    404,
-  ),
-);
+  return app;
+};

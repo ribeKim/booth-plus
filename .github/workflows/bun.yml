@@ -12,6 +12,23 @@ jobs:
   verify:
     if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
+    env:
+      DATABASE_URL: postgresql://booth_plus:booth_plus@localhost:5432/booth_plus
+      DATABASE_SSL_MODE: disable
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24
+        env:
+          POSTGRES_DB: booth_plus
+          POSTGRES_USER: booth_plus
+          POSTGRES_PASSWORD: booth_plus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U booth_plus -d booth_plus"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -28,17 +45,20 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Apply PostgreSQL migrations
+        run: bun run db:migrate
+
       - name: Check workspace
         run: bun run check
 
-      - name: Validate D1 migrations
-        run: bun run --filter @booth-plus/backend db:migrate:ci
-
-      - name: Test backend in Workers runtime
-        run: bun run --filter @booth-plus/backend test:worker
+      - name: Test PostgreSQL integration
+        run: bun run test:integration
 
       - name: Build workspace
         run: bun run build
+
+      - name: Build backend container
+        run: docker build -f apps/backend/Dockerfile -t booth-plus-backend:ci .
 
   release:
     if: github.event.action == 'closed' && github.event.pull_request.merged == true

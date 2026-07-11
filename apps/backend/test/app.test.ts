@@ -1,34 +1,36 @@
-import { describe, expect, test } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import { app } from "../src/app";
+import { createApp, type LifecycleState } from "../src/app";
 import { isOriginAllowed, parseCorsOrigins } from "../src/cors";
 
-const unavailableDatabase = {
-  prepare: () => ({
-    bind: () => ({
-      first: async () => ({ isReady: 0 }),
-    }),
-  }),
-} as unknown as D1Database;
-
-const bindings: CloudflareBindings = {
-  CORS_ORIGINS:
+const isReady = vi.fn(async () => false);
+const lifecycle: LifecycleState = { shuttingDown: false };
+const app = createApp({
+  corsOrigins: parseCorsOrigins(
     "https://booth.pm,https://*.booth.pm,chrome-extension://hafbafjoecfjdlhjilpakabocglkaegj",
-  DB: unavailableDatabase,
-};
+  ),
+  database: { isReady },
+  lifecycle,
+});
 
 const request = (path: string, init?: RequestInit) =>
-  app.request(`https://worker.test${path}`, init, bindings);
+  app.request(`https://backend.test${path}`, init);
 
-describe("BoothPlus Worker", () => {
-  test("GET /api/health reports the Worker runtime", async () => {
+beforeEach(() => {
+  lifecycle.shuttingDown = false;
+  isReady.mockReset();
+  isReady.mockResolvedValue(false);
+});
+
+describe("BoothPlus Bun backend", () => {
+  test("GET /api/health reports the Bun runtime", async () => {
     const response = await request("/api/health");
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       status: "ok",
       service: "@booth-plus/backend",
-      runtime: "cloudflare-workers",
+      runtime: "bun",
     });
   });
 
@@ -43,15 +45,50 @@ describe("BoothPlus Worker", () => {
     });
   });
 
-  test("storage health returns 503 until D1 migrations are applied", async () => {
+  test("storage health reports PostgreSQL readiness", async () => {
+    isReady.mockResolvedValue(true);
+
+    const response = await request("/api/health/storage");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "ok",
+      service: "@booth-plus/backend",
+      storage: "postgresql",
+    });
+  });
+
+  test("storage health returns 503 while PostgreSQL is unavailable", async () => {
     const response = await request("/api/health/storage");
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
       status: "unavailable",
       service: "@booth-plus/backend",
-      storage: "cloudflare-d1",
+      storage: "postgresql",
     });
+  });
+
+  test("storage health hides database errors", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    isReady.mockRejectedValue(new Error("connection details must stay private"));
+
+    try {
+      const response = await request("/api/health/storage");
+      expect(response.status).toBe(503);
+      await expect(response.text()).resolves.not.toContain("connection details");
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  test("storage health drains before shutdown without querying PostgreSQL", async () => {
+    lifecycle.shuttingDown = true;
+
+    const response = await request("/api/health/storage");
+
+    expect(response.status).toBe(503);
+    expect(isReady).not.toHaveBeenCalled();
   });
 
   test.each(["PUT", "DELETE"])("CORS preflight supports %s", async (method) => {
@@ -84,7 +121,7 @@ describe("BoothPlus Worker", () => {
   });
 });
 
-test("origin helpers parse bindings and safely match BOOTH subdomains", () => {
+test("origin helpers parse configuration and safely match BOOTH subdomains", () => {
   const allowedOrigins = parseCorsOrigins(
     "https://booth.pm, https://*.booth.pm, chrome-extension://extension-id",
   );
