@@ -126,6 +126,26 @@ export const findProductForCurrentPage = async (): Promise<ReviewProduct | null>
     if (directProduct) {
       return directProduct;
     }
+
+    const pageUrl = new URL(window.location.href);
+    const shopId = pageUrl.hostname.endsWith(".booth.pm")
+      ? pageUrl.hostname.slice(0, -".booth.pm".length)
+      : "booth";
+    return {
+      id: productIdFromPath,
+      title: document.title,
+      price: "",
+      url: normalizedPage,
+      score: 0,
+      thumbnails: [],
+      category: "",
+      shop: {
+        id: shopId,
+        name: shopId,
+        url: `${pageUrl.protocol}//${pageUrl.hostname}/`,
+        avatar: "",
+      },
+    };
   }
 
   const candidates = buildSearchCandidates();

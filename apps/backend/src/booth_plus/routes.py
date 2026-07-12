@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from .auth import issue_access_token, new_refresh_token, token_hash, verify_access_token
+from .booth import BoothProduct, fetch_product
 from .config import Settings
 
 
@@ -125,6 +126,45 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             ),
             "refreshToken": refresh,
         }
+
+    async def save_product(product: BoothProduct) -> None:
+        async with engine().begin() as connection:
+            await connection.execute(
+                text("""INSERT INTO shops (id, name, url, avatar_url)
+                    VALUES (:id, :name, :url, :avatar)
+                    ON CONFLICT (id) DO UPDATE SET
+                      name=EXCLUDED.name, url=EXCLUDED.url, avatar_url=EXCLUDED.avatar_url"""),
+                {
+                    "id": product.shop_id,
+                    "name": product.shop_name,
+                    "url": product.shop_url,
+                    "avatar": product.shop_avatar,
+                },
+            )
+            await connection.execute(
+                text("""INSERT INTO products (id, shop_id, title, price, url, category)
+                    VALUES (:id, :shop, :title, :price, :url, :category)
+                    ON CONFLICT (id) DO UPDATE SET
+                      shop_id=EXCLUDED.shop_id, title=EXCLUDED.title, price=EXCLUDED.price,
+                      url=EXCLUDED.url, category=EXCLUDED.category"""),
+                {
+                    "id": product.id,
+                    "shop": product.shop_id,
+                    "title": product.title,
+                    "price": product.price,
+                    "url": product.url,
+                    "category": product.category,
+                },
+            )
+            await connection.execute(
+                text("DELETE FROM product_thumbnails WHERE product_id=:id"), {"id": product.id}
+            )
+            for position, url in enumerate(product.thumbnails):
+                await connection.execute(
+                    text("""INSERT INTO product_thumbnails (product_id, position, url)
+                        VALUES (:product, :position, :url)"""),
+                    {"product": product.id, "position": position, "url": url},
+                )
 
     def validate_redirect_url(redirect_url: str) -> None:
         if not re.fullmatch(r"https://[a-p]{32}\.chromiumapp\.org/", redirect_url):
@@ -408,11 +448,21 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
         product_id: str, body: CommentBody, user_id: Annotated[str, Depends(current_user)]
     ) -> dict[str, str]:
         comment_id = secrets.token_urlsafe(18)
-        async with engine().begin() as connection:
-            if not await connection.scalar(
+        async with engine().connect() as connection:
+            product_exists = await connection.scalar(
                 text("SELECT 1 FROM products WHERE id=:id"), {"id": product_id}
-            ):
+            )
+        if not product_exists:
+            try:
+                booth_product = await fetch_product(product_id)
+            except httpx.HTTPError as error:
+                raise HTTPException(
+                    status_code=502, detail="failed to fetch BOOTH product"
+                ) from error
+            if booth_product is None:
                 raise HTTPException(status_code=404, detail="product not found")
+            await save_product(booth_product)
+        async with engine().begin() as connection:
             try:
                 await connection.execute(
                     text(
