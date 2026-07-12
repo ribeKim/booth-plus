@@ -1,5 +1,4 @@
-export { useProductQuery } from "./useProductQuery";
 export { useUserProfileQuery } from "./useUserProfileQuery";
-export { useProductCommentsQuery, type ProductCommentsResult } from "./useProductCommentsQuery";
+export { useCommentsQuery } from "./useCommentsQuery";
 export { useMyCommentQuery } from "./useMyCommentQuery";
 export { useMyCommentsQuery, type MyCommentsResult } from "./useMyCommentsQuery";

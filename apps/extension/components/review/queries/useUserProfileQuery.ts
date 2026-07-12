@@ -1,14 +1,28 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { fetchUserProfile } from "@/components/review/api";
 import type { UserProfile } from "@/components/review/types";
+import { authTokenStorage } from "@/utils/storage";
+import { useEffect } from "react";
 
 type UserProfileQueryOptions = Omit<UseQueryOptions<UserProfile | null, Error>, "queryKey" | "queryFn">;
 
-export const useUserProfileQuery = (options?: UserProfileQueryOptions) =>
-  useQuery<UserProfile | null>({
+export const useUserProfileQuery = (options?: UserProfileQueryOptions) => {
+  const queryClient = useQueryClient();
+
+  useEffect(
+    () =>
+      authTokenStorage.watch(() => {
+        void queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+      }),
+    [queryClient],
+  );
+
+  return useQuery<UserProfile | null>({
     queryKey: ["userProfile"],
     queryFn: fetchUserProfile,
     refetchOnWindowFocus: false,
     retry: false,
     ...options,
   });
+};

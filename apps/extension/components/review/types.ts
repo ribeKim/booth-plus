@@ -1,19 +1,3 @@
-export type ReviewProduct = {
-  id: string;
-  title: string;
-  price: string;
-  url: string;
-  score: number;
-  thumbnails: string[];
-  category: string;
-  shop: {
-    id: string;
-    name: string;
-    url: string;
-    avatar: string;
-  };
-};
-
 export type CommentItem = {
   id: string;
   content: string;
@@ -50,4 +34,16 @@ export type MyCommentData = {
 export type AuthToken = {
   accessToken: string;
   refreshToken: string;
-}
+};
+
+export type CommentBody = {
+  content: string;
+  score: number;
+};
+
+export type CommentsPage = {
+  count: number;
+  comments: CommentItem[];
+  page: number;
+  pageSize: number;
+};

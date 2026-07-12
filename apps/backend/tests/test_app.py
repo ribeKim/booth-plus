@@ -108,10 +108,12 @@ async def test_discord_login_uses_legacy_desktop_handoff_url() -> None:
         follow_redirects=False,
     ) as client:
         response = await client.get(
-            "/api/auth/oauth/discord", params={"redirectUrl": redirect_url}
+            "/api/auth/oauth/discord",
+            params={"redirectUrl": redirect_url, "state": "a" * 32},
         )
 
     assert response.status_code == 302
     assert response.headers["location"].startswith(
         "https://discord.com/api/oauth2/authorize?"
     )
+    assert "state=" + "a" * 32 in response.headers["location"]

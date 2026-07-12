@@ -145,7 +145,10 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             raise HTTPException(status_code=400, detail="invalid redirectUrl")
 
     @router.get("/auth/oauth/discord")
-    async def discord_start(redirect_url: str = Query(alias="redirectUrl")) -> RedirectResponse:
+    async def discord_start(
+        redirect_url: str = Query(alias="redirectUrl"),
+        state: str = Query(min_length=32, max_length=128),
+    ) -> RedirectResponse:
         if not settings.discord_client_id:
             raise HTTPException(status_code=503, detail="Discord OAuth is not configured")
         validate_redirect_url(redirect_url)
@@ -155,6 +158,7 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
                 "redirect_uri": redirect_url,
                 "response_type": "code",
                 "scope": "identify",
+                "state": state,
             }
         )
         return RedirectResponse(

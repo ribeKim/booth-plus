@@ -36,7 +36,7 @@ def verify_access_token(token: str, secret: str) -> str:
         if not hmac.compare_digest(signature, expected):
             raise ValueError
         data: dict[str, Any] = json.loads(_decode(payload))
-        if int(data["exp"]) < int(time.time()) or not isinstance(data["sub"], str):
+        if int(data["exp"]) <= int(time.time()) or not isinstance(data["sub"], str):
             raise ValueError
         return data["sub"]
     except (ValueError, KeyError, TypeError, json.JSONDecodeError) as error:

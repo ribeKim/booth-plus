@@ -1,48 +1,24 @@
 import { ApiError, readResponseText } from "@/utils/review-utils";
 import { authTokenStorage } from "@/utils/storage";
-import { CommentItem, MyCommentData, ReviewProduct, UserProfile } from "./types";
+import { API_BASE } from "./config";
+import { sendMessage } from "./messaging";
+import type {
+  AuthToken,
+  CommentBody,
+  CommentItem,
+  CommentsPage,
+  MyCommentData,
+  UserProfile,
+} from "./types";
 
-const API_ORIGIN = import.meta.env.WXT_API_ORIGIN;
-export const API_BASE = `${API_ORIGIN}/api`;
+export { API_BASE } from "./config";
 
 const defaultHeaders = {
   "Content-Type": "application/json",
-  Accept: 'application/json',
+  Accept: "application/json",
 };
 
-const refreshAccessToken = async (): Promise<boolean> => {
-  const tokens = await authTokenStorage.getValue();
-  const refreshToken = tokens?.refreshToken;
-  if (!refreshToken) {
-    await authTokenStorage.setValue(null);
-    return false;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE}/auth/token`, {
-      method: "POST",
-      credentials: "include",
-      mode: "cors",
-      headers: defaultHeaders,
-      body: JSON.stringify({ refreshToken }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        await authTokenStorage.setValue(null);
-      }
-      return false;
-    }
-
-    const payload = await response.json();
-    await authTokenStorage.setValue(payload);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const performFetch = async (url: string, init: RequestInit, attempt = 0): Promise<any> => {
+const performFetch = async <T>(url: string, init: RequestInit, attempt = 0): Promise<T> => {
   const tokens = await authTokenStorage.getValue();
   const accessToken = tokens?.accessToken;
   const response = await fetch(url, {
@@ -57,11 +33,11 @@ const performFetch = async (url: string, init: RequestInit, attempt = 0): Promis
   });
 
   if (response.ok) {
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   if (response.status === 401 && attempt === 0) {
-    const refreshed = await refreshAccessToken();
+    const refreshed = await sendMessage("refreshSession");
     if (refreshed) {
       return performFetch(url, init, attempt + 1);
     }
@@ -71,14 +47,14 @@ const performFetch = async (url: string, init: RequestInit, attempt = 0): Promis
   throw new ApiError(message, response.status);
 };
 
-export const apiFetch = async (path: string, init: RequestInit = {}) => {
+export const apiFetch = <T>(path: string, init: RequestInit = {}) => {
   const url = `${API_BASE}${path}`;
-  return performFetch(url, init);
+  return performFetch<T>(url, init);
 };
 
 export const fetchUserProfile = async (): Promise<UserProfile | null> => {
   try {
-    const response = await apiFetch(`/user/me`);
+    const response = await apiFetch<UserProfile>("/user/me");
     return response ?? null;
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
@@ -88,52 +64,13 @@ export const fetchUserProfile = async (): Promise<UserProfile | null> => {
   }
 };
 
-const ITEM_PATH_REGEX = /\/items\/([^/?#]+)/;
-
-const extractProductIdFromPath = (path: string) => {
-  const match = path.match(ITEM_PATH_REGEX);
-  if (!match) {
-    return null;
-  }
-
-  return match[1];
-};
-
-export const findProductForCurrentPage = async (): Promise<ReviewProduct | null> => {
-  const pageUrl = new URL(window.location.href);
-  const productIdFromPath = extractProductIdFromPath(pageUrl.pathname);
-
-  if (productIdFromPath) {
-    const shopId = pageUrl.hostname.endsWith(".booth.pm")
-      ? pageUrl.hostname.slice(0, -".booth.pm".length)
-      : "booth";
-    return {
-      id: productIdFromPath,
-      title: document.title,
-      price: "",
-      url: pageUrl.href,
-      score: 0,
-      thumbnails: [],
-      category: "",
-      shop: {
-        id: shopId,
-        name: shopId,
-        url: `${pageUrl.protocol}//${pageUrl.hostname}/`,
-        avatar: "",
-      },
-    };
-  }
-
-  return null;
-};
-
-export const fetchCommentsForProduct = async (
-  productId: string,
+export const fetchComments = async (
+  itemId: string,
   page = 1,
   limit = 10,
-): Promise<{ count: number; comments: CommentItem[]; page: number; pageSize: number }> => {
-  const payload = await apiFetch(
-    `/comment?productId=${encodeURIComponent(productId)}&sort=new&page=${page}&limit=${limit}`,
+): Promise<CommentsPage> => {
+  const payload = await apiFetch<{ count: number; comments: CommentItem[] }>(
+    `/comment?productId=${encodeURIComponent(itemId)}&page=${page}&limit=${limit}`,
   );
   return {
     count: typeof payload?.count === "number" ? payload.count : 0,
@@ -143,12 +80,12 @@ export const fetchCommentsForProduct = async (
   };
 };
 
-export const fetchUserComment = async (productId: string): Promise<MyCommentData | null> => {
+export const fetchMyComment = async (itemId: string): Promise<MyCommentData | null> => {
   try {
-    const payload = await apiFetch(`/comment/${productId}/my`);
+    const payload = await apiFetch<{ comment: MyCommentData | null }>(`/comment/${itemId}/my`);
     return payload?.comment ?? null;
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 404)) {
+    if (error instanceof ApiError && error.status === 401) {
       return null;
     }
     throw error;
@@ -159,7 +96,9 @@ export const fetchMyComments = async (
   page = 1,
   limit = 5,
 ): Promise<{ count: number; comments: CommentItem[] }> => {
-  const payload = await apiFetch(`/comment/my?page=${page}&limit=${limit}&sort=new`);
+  const payload = await apiFetch<{ count: number; comments: CommentItem[] }>(
+    `/comment/my?page=${page}&limit=${limit}`,
+  );
   return {
     count: typeof payload?.count === "number" ? payload.count : 0,
     comments: Array.isArray(payload?.comments) ? payload.comments : [],
@@ -167,32 +106,27 @@ export const fetchMyComments = async (
 };
 
 export const submitComment = (
-  productId: string,
+  itemId: string,
   method: "POST" | "PUT",
-  body: Record<string, unknown>,
-) => apiFetch(`/comment/${productId}`, { method, body: JSON.stringify(body) });
+  body: CommentBody,
+) => apiFetch<{ id?: string; updated?: boolean }>(`/comment/${itemId}`, {
+  method,
+  body: JSON.stringify(body),
+});
 
-export const deleteComment = async (productId: string) =>{
-  const tokens = await authTokenStorage.getValue();
-  const accessToken = tokens?.accessToken;
-  return apiFetch(`/comment/${productId}`, {
-    method: "DELETE",
-    headers: {
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    }
-  });
-}
+export const deleteComment = (itemId: string) =>
+  apiFetch<{ deleted: boolean }>(`/comment/${itemId}`, { method: "DELETE" });
 
-const voteComment = (
-  comment: CommentItem,
-  direction: "upvote" | "downvote",
-) => apiFetch(`/comment/${comment.id}/${direction}`, { method: "POST", body: JSON.stringify(comment) });
+export const voteComment = (commentId: string, direction: "upvote" | "downvote") =>
+  apiFetch<{ updated: boolean }>(`/comment/${commentId}/${direction}`, { method: "POST" });
 
-export const upvoteComment = (comment: CommentItem) => voteComment(comment, "upvote");
-export const downvoteComment = (comment: CommentItem) => voteComment(comment, "downvote");
+export const exchangeDiscordCode = (code: string, redirectUrl: string) =>
+  apiFetch<AuthToken>(
+    `/auth/oauth/discord/callback?code=${encodeURIComponent(code)}&redirectUrl=${encodeURIComponent(redirectUrl)}`,
+  );
 
 const updateUserField = (path: string, body: Record<string, unknown>) =>
-  apiFetch(path, { method: "PUT", body: JSON.stringify(body) });
+  apiFetch<{ updated: boolean }>(path, { method: "PUT", body: JSON.stringify(body) });
 
 export const updateUserAutoCollapse = (autoCollapse: boolean) =>
   updateUserField("/user/autoCollapse", { autoCollapse });

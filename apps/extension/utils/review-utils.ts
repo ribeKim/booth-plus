@@ -14,48 +14,6 @@ export const readResponseText = async (response: Response): Promise<string> => {
   }
 };
 
-export const normalizeUrl = (value: string) => {
-  try {
-    const parsed = new URL(value);
-    const cleanPath = parsed.pathname.replace(/\/+$/, "");
-    return `${parsed.origin}${cleanPath}`;
-  } catch {
-    return value.replace(/\/+$/, "");
-  }
-};
-
-export const buildSearchCandidates = () => {
-  const { href, origin, pathname } = window.location;
-  const trimmedPath = pathname.replace(/\/+$/, "");
-  const set = new Set<string>();
-  set.add(href);
-  set.add(`${origin}${trimmedPath}`);
-  set.add(trimmedPath);
-  const idMatch = trimmedPath.match(/\/items\/([^/]+)/);
-  if (idMatch) {
-    set.add(idMatch[1]);
-    set.add(trimmedPath.substring(trimmedPath.lastIndexOf("/")));
-  }
-  return Array.from(set).filter(Boolean);
-};
-
-export const matchesNormalizedUrl = (productUrl: string, pageUrl: string) => {
-  const normalizedProduct = normalizeUrl(productUrl);
-  if (!normalizedProduct || !pageUrl) {
-    return false;
-  }
-
-  if (normalizedProduct === pageUrl) {
-    return true;
-  }
-
-  if (pageUrl.startsWith(normalizedProduct) || normalizedProduct.startsWith(pageUrl)) {
-    return true;
-  }
-
-  return false;
-};
-
 export const formatDateTime = (value: string) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
