@@ -36,9 +36,8 @@ def main() -> None:
     engine.dispose()
 
     if legacy_applied:
-        command.stamp(config, "head")
-    else:
-        command.upgrade(config, "head")
+        command.stamp(config, "0001_initial")
+    command.upgrade(config, "head")
 
 
 if __name__ == "__main__":

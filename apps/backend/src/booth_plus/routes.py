@@ -48,10 +48,12 @@ def _comment(row: Any) -> dict[str, Any]:
 
 
 COMMENT_SELECT = """
-SELECT c.id, c.content, c.score, c.language, c.updated_at, c.user_id, u.username,
+SELECT c.id, c.content, c.score, c.language, c.updated_at,
+       COALESCE(c.user_id, 'anonymous:' || c.id) AS user_id,
+       COALESCE(u.username, '익명') AS username,
        COUNT(v.*) FILTER (WHERE v.value = 1)::int AS upvotes,
        COUNT(v.*) FILTER (WHERE v.value = -1)::int AS downvotes
-FROM comments c JOIN users u ON u.id = c.user_id
+FROM comments c LEFT JOIN users u ON u.id = c.user_id
 LEFT JOIN comment_votes v ON v.comment_id = c.id
 """
 
@@ -392,7 +394,7 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
 
     @router.post("/comment/{product_id}")
     async def create_comment(
-        product_id: str, body: CommentBody, user_id: Annotated[str, Depends(current_user)]
+        product_id: str, body: CommentBody, user_id: Annotated[str | None, Depends(optional_user)]
     ) -> dict[str, str]:
         comment_id = secrets.token_urlsafe(18)
         async with engine().connect() as connection:
@@ -469,9 +471,6 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             )
             if owner is None:
                 raise HTTPException(status_code=404, detail="comment not found")
-            if owner == user_id:
-                direction = "upvote" if value == 1 else "downvote"
-                raise HTTPException(status_code=400, detail=f"cannot {direction} your own comment")
             parameters = {"comment": comment_id, "user": user_id, "value": value}
             current = await connection.scalar(
                 text("""SELECT value FROM comment_votes

@@ -38,8 +38,6 @@ messages:
   checkContent: 内容を確認してください。
   reviewSaveError: コメントの保存中にエラーが発生しました。
   reviewDeleteError: コメントの削除中にエラーが発生しました。
-  voteOwnUp: 自分のレビューにはいいねできません。
-  voteOwnDown: 自分のレビューにはよくないねできません。
   voteError: 投票中にエラーが発生しました。
   logoutError: ログアウト中にエラーが発生しました。
   loginRequired: ログインが必要です。

@@ -145,23 +145,8 @@ export function ReviewBoard() {
         queryClient.invalidateQueries({ queryKey: ["myComment", productId] });
       }
     },
-    onError(e) {
-      try {
-        const error = JSON.parse(e.message);
-        switch(error.message) {
-          case 'cannot upvote your own comment':
-            showErrorToast(i18n.t("messages.voteOwnUp"));
-            break;
-          case 'cannot downvote your own comment':
-            showErrorToast(i18n.t("messages.voteOwnDown"));
-            break;
-          default:
-            showErrorToast(i18n.t("messages.voteError"));
-            break;
-        }
-      } catch {
-        showErrorToast(i18n.t("messages.voteError"));
-      }
+    onError() {
+      showErrorToast(i18n.t("messages.voteError"));
     },
   });
 
@@ -200,11 +185,6 @@ export function ReviewBoard() {
       return;
     }
 
-    if (!user) {
-      showErrorToast(i18n.t("messages.loginRequired"));
-      return;
-    }
-
     const trimmed = formState.content.trim();
     if (!trimmed) {
       showErrorToast(i18n.t("messages.emptyContent"));
@@ -230,7 +210,6 @@ export function ReviewBoard() {
 
   const isSubmitting = submitMutation.isPending || deleteMutation.isPending;
   const isAuthenticated = Boolean(user);
-  const canEdit = isAuthenticated;
   const isBusy = isSubmitting || productQuery.isFetching;
 
   const handleVote = (comment: CommentItem, direction: "upvote" | "downvote") => {
@@ -251,7 +230,7 @@ export function ReviewBoard() {
   };
 
   const handleStarSelect = (value: number) => {
-    if (!canEdit || isSubmitting) {
+    if (isSubmitting) {
       return;
     }
 
@@ -390,7 +369,7 @@ export function ReviewBoard() {
                 setFormState((previous) => ({ ...previous, content: event.target.value }))
               }
               placeholder={i18n.t("reviewBoard.placeholder")}
-              disabled={!canEdit || isSubmitting}
+              disabled={isSubmitting}
             />
           </div>
 
@@ -405,16 +384,13 @@ export function ReviewBoard() {
                 onSelect={(value) => handleStarSelect(value)}
               />
             </div>
-            {!canEdit && (
-              <p className="text-[11px] text-slate-400">{i18n.t("reviewBoard.loginPrompt")}</p>
-            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <button
               className="flex-1 rounded-2xl bg-gradient-to-r from-[#fc4d50] to-[#ff826a] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
               type="submit"
-              disabled={!canEdit || isSubmitting}
+              disabled={isSubmitting}
             >
               {submitMutation.isPending
                 ? i18n.t("reviewBoard.submit.saving")

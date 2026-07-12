@@ -38,8 +38,6 @@ messages:
   checkContent: Please review your content.
   reviewSaveError: An error occurred while saving your comment.
   reviewDeleteError: An error occurred while deleting your comment.
-  voteOwnUp: You can’t like your own review.
-  voteOwnDown: You can’t dislike your own review.
   voteError: An error occurred while voting.
   logoutError: An error occurred while logging out.
   loginRequired: Login is required.

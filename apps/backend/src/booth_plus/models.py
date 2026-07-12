@@ -56,7 +56,7 @@ oauth_accounts = Table(
     Base.metadata,
     Column("provider", Text, primary_key=True),
     Column("provider_user_id", Text, primary_key=True),
-    Column("user_id", Text, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", Text, ForeignKey("users.id", ondelete="CASCADE")),
     Column("provider_username", Text, nullable=False),
     Column("avatar_url", Text),
     *timestamp_columns(),

@@ -32,7 +32,7 @@ bun run check
 bun run docker:build:backend
 ```
 
-SQLAlchemy 2.x provides the async application engine and schema metadata. Alembic revisions live in `alembic/versions/`; create one with `bun run db:migration:create -- -m "description"`. The initial revision reuses the existing SQL migration. Production runs `alembic upgrade head` through the one-shot migration container before replacing the API container. A database previously initialized through `app_migrations` is stamped at the matching Alembic revision without recreating its tables.
+SQLAlchemy 2.x provides the async application engine and schema metadata. Alembic revisions live in `alembic/versions/`; create one with `bun run db:migration:create -- -m "description"`. Production runs `alembic upgrade head` through the one-shot migration container before replacing the API container. A database previously initialized through `app_migrations` is stamped at the matching Alembic revision without recreating its tables.
 
 Use either `DATABASE_URL` or `DATABASE_URL_FILE`, never both. Production uses `DATABASE_SSL_MODE=verify-full` with `DATABASE_SSL_CA_FILE`; local development uses `disable`. Rate limiting is controlled with `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`, and `RATE_LIMIT_WRITE_MAX_REQUESTS`.
 
