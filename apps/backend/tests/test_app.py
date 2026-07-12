@@ -77,12 +77,15 @@ async def test_frontend_api_routes_are_registered() -> None:
         ("GET", "/api/user/avatar/{user_id}"),
         ("GET", "/api/comment"),
         ("GET", "/api/comment/my"),
-        ("GET", "/api/comment/{product_id}/my"),
         ("POST", "/api/comment/{product_id}"),
-        ("PUT", "/api/comment/{product_id}"),
-        ("DELETE", "/api/comment/{product_id}"),
+        ("PUT", "/api/comment/{comment_id}"),
+        ("DELETE", "/api/comment/{comment_id}"),
         ("POST", "/api/comment/{comment_id}/upvote"),
         ("POST", "/api/comment/{comment_id}/downvote"),
+        ("GET", "/api/admin/comments"),
+        ("PUT", "/api/admin/comments/{comment_id}/disabled"),
+        ("DELETE", "/api/admin/comments/{comment_id}"),
+        ("POST", "/api/admin/imports/comments"),
     }
     assert expected <= registered
     assert ("GET", "/api/product/search") not in registered
@@ -97,6 +100,13 @@ async def test_protected_route_requires_authentication() -> None:
         response = await client.get("/api/user/me")
     assert response.status_code == 401, response.text
     assert response.json()["message"] == "authentication required"
+
+    async with AsyncClient(
+        transport=ASGITransport(app=create_app(settings(), FakeDatabase())),
+        base_url="http://test",
+    ) as client:
+        admin_response = await client.get("/api/admin/comments")
+    assert admin_response.status_code == 401, admin_response.text
 
 
 async def test_discord_login_uses_legacy_desktop_handoff_url() -> None:
@@ -117,3 +127,33 @@ async def test_discord_login_uses_legacy_desktop_handoff_url() -> None:
         "https://discord.com/api/oauth2/authorize?"
     )
     assert "state=" + "a" * 32 in response.headers["location"]
+
+
+async def test_discord_login_accepts_only_configured_admin_callback() -> None:
+    configured = replace(
+        settings(),
+        discord_client_id="123456789",
+        admin_redirect_url="https://example.com/admin/oauth/callback",
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=create_app(configured, FakeDatabase())),
+        base_url="http://test",
+        follow_redirects=False,
+    ) as client:
+        accepted = await client.get(
+            "/api/auth/oauth/discord",
+            params={
+                "redirectUrl": configured.admin_redirect_url,
+                "state": "a" * 32,
+            },
+        )
+        rejected = await client.get(
+            "/api/auth/oauth/discord",
+            params={
+                "redirectUrl": "https://attacker.example/oauth/callback",
+                "state": "a" * 32,
+            },
+        )
+
+    assert accepted.status_code == 302
+    assert rejected.status_code == 400

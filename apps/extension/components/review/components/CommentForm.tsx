@@ -5,27 +5,24 @@ import StarIcons from "../../StarIcon";
 type Props = {
   content: string;
   score: number;
-  hasComment: boolean;
+  isEditing: boolean;
   isSaving: boolean;
-  isDeleting: boolean;
   onContentChange: (content: string) => void;
   onScoreChange: (score: number) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onDelete: () => void;
+  onCancelEdit: () => void;
 };
 
 export function CommentForm({
   content,
   score,
-  hasComment,
+  isEditing,
   isSaving,
-  isDeleting,
   onContentChange,
   onScoreChange,
   onSubmit,
-  onDelete,
+  onCancelEdit,
 }: Props) {
-  const isBusy = isSaving || isDeleting;
   return (
     <form className="mt-4 space-y-4 border-t border-slate-100 pt-4" onSubmit={onSubmit}>
       <div>
@@ -39,7 +36,7 @@ export function CommentForm({
           value={content}
           onChange={(event) => onContentChange(event.target.value)}
           placeholder={i18n.t("reviewBoard.placeholder")}
-          disabled={isBusy}
+          disabled={isSaving}
         />
       </div>
       <div className="flex flex-col gap-2 text-xs font-semibold text-slate-500">
@@ -50,24 +47,22 @@ export function CommentForm({
         <button
           className="flex-1 rounded-2xl bg-gradient-to-r from-[#fc4d50] to-[#ff826a] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
           type="submit"
-          disabled={isBusy}
+          disabled={isSaving}
         >
           {isSaving
             ? i18n.t("reviewBoard.submit.saving")
-            : hasComment
+            : isEditing
               ? i18n.t("reviewBoard.submit.edit")
               : i18n.t("reviewBoard.submit.new")}
         </button>
-        {hasComment && (
+        {isEditing && (
           <button
             type="button"
-            className="rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
-            onClick={onDelete}
-            disabled={isBusy}
+            className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+            onClick={onCancelEdit}
+            disabled={isSaving}
           >
-            {isDeleting
-              ? i18n.t("reviewBoard.submit.deleting")
-              : i18n.t("reviewBoard.submit.delete")}
+            {i18n.t("reviewBoard.submit.new")}
           </button>
         )}
       </div>

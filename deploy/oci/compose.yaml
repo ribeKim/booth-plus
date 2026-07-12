@@ -16,6 +16,7 @@ x-backend-environment: &backend-environment
   AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in deploy/oci/.env}
   DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?Set DISCORD_CLIENT_ID in deploy/oci/.env}
   DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?Set DISCORD_CLIENT_SECRET in deploy/oci/.env}
+  ADMIN_REDIRECT_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in deploy/oci/.env}/admin/oauth/callback
 
 x-backend-service: &backend-service
   image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in deploy/oci/.env}
@@ -36,6 +37,29 @@ x-backend-service: &backend-service
   stop_grace_period: 35s
 
 services:
+  admin:
+    image: ${ADMIN_IMAGE:?Set ADMIN_IMAGE in deploy/oci/.env}
+    expose:
+      - "8080"
+    networks:
+      - application
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/cache/nginx:size=16m,mode=0755
+      - /var/run:size=1m,mode=0755
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+    restart: unless-stopped
+
   postgres:
     image: postgres:17.10-alpine3.24
     environment:
@@ -107,6 +131,8 @@ services:
     networks:
       - application
     depends_on:
+      admin:
+        condition: service_healthy
       backend:
         condition: service_healthy
     read_only: true

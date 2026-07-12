@@ -1,9 +1,10 @@
 import { i18n } from "#i18n";
 import {
   API_BASE,
+  createComment,
   deleteComment,
   exchangeDiscordCode,
-  submitComment,
+  updateComment,
   voteComment,
 } from "@/components/review/api";
 import { CommentForm } from "@/components/review/components/CommentForm";
@@ -11,12 +12,8 @@ import { CommentList } from "@/components/review/components/CommentList";
 import { ReviewHeader } from "@/components/review/components/ReviewHeader";
 import { getCurrentItemId } from "@/components/review/item";
 import { sendMessage } from "@/components/review/messaging";
-import {
-  useMyCommentQuery,
-  useCommentsQuery,
-  useUserProfileQuery,
-} from "@/components/review/queries";
-import type { CommentBody } from "@/components/review/types";
+import { useCommentsQuery, useUserProfileQuery } from "@/components/review/queries";
+import type { CommentBody, CommentItem } from "@/components/review/types";
 import { ApiError } from "@/utils/review-utils";
 import { authTokenStorage } from "@/utils/storage";
 import { showErrorToast } from "@/utils/toast";
@@ -30,7 +27,7 @@ const COMMENTS_PAGE_SIZE = 10;
 
 type SubmitVariables = {
   itemId: string;
-  method: "POST" | "PUT";
+  commentId?: string;
   body: CommentBody;
 };
 
@@ -39,21 +36,13 @@ export function ReviewBoard() {
   const queryClient = useQueryClient();
   const userQuery = useUserProfileQuery();
   const commentsQuery = useCommentsQuery(itemId, COMMENTS_PAGE_SIZE);
-  const myCommentQuery = useMyCommentQuery(itemId, {
-    enabled: Boolean(itemId && userQuery.data),
-  });
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState({ content: "", score: DEFAULT_SCORE });
+  const [editingComment, setEditingComment] = useState<CommentItem | null>(null);
 
   const comments = commentsQuery.data?.pages.flatMap((page) => page.comments) ?? [];
   const commentCount = commentsQuery.data?.pages[0]?.count ?? 0;
-  const myComment = myCommentQuery.data ?? null;
   const isAuthenticated = Boolean(userQuery.data);
-
-  useEffect(() => {
-    if (!myComment) return;
-    setForm({ content: myComment.content, score: myComment.score });
-  }, [myComment]);
 
   useEffect(() => {
     const element = loadMoreTriggerRef.current;
@@ -73,16 +62,22 @@ export function ReviewBoard() {
 
   const invalidateComments = async () => {
     if (!itemId) return;
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["comments", itemId] }),
-      queryClient.invalidateQueries({ queryKey: ["myComment", itemId] }),
-    ]);
+    await queryClient.invalidateQueries({ queryKey: ["comments", itemId] });
   };
 
   const submitMutation = useMutation({
-    mutationFn: ({ itemId: targetItemId, method, body }: SubmitVariables) =>
-      submitComment(targetItemId, method, body),
-    onSuccess: invalidateComments,
+    mutationFn: async ({ itemId: targetItemId, commentId, body }: SubmitVariables) => {
+      if (commentId) {
+        await updateComment(commentId, body);
+      } else {
+        await createComment(targetItemId, body);
+      }
+    },
+    onSuccess: async () => {
+      setEditingComment(null);
+      setForm({ content: "", score: DEFAULT_SCORE });
+      await invalidateComments();
+    },
     onError: (error: Error) => {
       showErrorToast(
         error instanceof ApiError && error.status === 400
@@ -94,8 +89,11 @@ export function ReviewBoard() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteComment,
-    onSuccess: async () => {
-      setForm({ content: "", score: DEFAULT_SCORE });
+    onSuccess: async (_, commentId) => {
+      if (editingComment?.id === commentId) {
+        setEditingComment(null);
+        setForm({ content: "", score: DEFAULT_SCORE });
+      }
       await invalidateComments();
     },
     onError: () => showErrorToast(i18n.t("messages.reviewDeleteError")),
@@ -109,7 +107,7 @@ export function ReviewBoard() {
   });
 
   const refreshAuthData = async () => {
-    await Promise.all([userQuery.refetch(), myCommentQuery.refetch()]);
+    await userQuery.refetch();
   };
 
   const handleLogin = async () => {
@@ -134,6 +132,7 @@ export function ReviewBoard() {
   const handleLogout = async () => {
     try {
       await authTokenStorage.setValue(null);
+      setEditingComment(null);
       setForm({ content: "", score: DEFAULT_SCORE });
       await refreshAuthData();
     } catch {
@@ -150,7 +149,7 @@ export function ReviewBoard() {
     }
     submitMutation.mutate({
       itemId,
-      method: myComment ? "PUT" : "POST",
+      commentId: editingComment?.id,
       body: { content, score: form.score },
     });
   };
@@ -161,6 +160,16 @@ export function ReviewBoard() {
       return;
     }
     voteMutation.mutate({ commentId, direction });
+  };
+
+  const handleEdit = (comment: CommentItem) => {
+    setEditingComment(comment);
+    setForm({ content: comment.content, score: comment.score });
+  };
+
+  const cancelEdit = () => {
+    setEditingComment(null);
+    setForm({ content: "", score: DEFAULT_SCORE });
   };
 
   if (!itemId) return null;
@@ -183,19 +192,21 @@ export function ReviewBoard() {
           isLoading={commentsQuery.isLoading}
           isFetchingMore={commentsQuery.isFetchingNextPage}
           isVoting={voteMutation.isPending}
+          isDeleting={deleteMutation.isPending}
           loadMoreRef={loadMoreTriggerRef}
           onVote={handleVote}
+          onEdit={handleEdit}
+          onDelete={(commentId) => deleteMutation.mutate(commentId)}
         />
         <CommentForm
           content={form.content}
           score={form.score}
-          hasComment={Boolean(myComment)}
+          isEditing={Boolean(editingComment)}
           isSaving={submitMutation.isPending}
-          isDeleting={deleteMutation.isPending}
           onContentChange={(content) => setForm((current) => ({ ...current, content }))}
           onScoreChange={(score) => !isFormBusy && setForm((current) => ({ ...current, score }))}
           onSubmit={handleSubmit}
-          onDelete={() => deleteMutation.mutate(itemId)}
+          onCancelEdit={cancelEdit}
         />
       </div>
     </div>

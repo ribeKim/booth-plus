@@ -13,8 +13,11 @@ type Props = {
   isLoading: boolean;
   isFetchingMore: boolean;
   isVoting: boolean;
+  isDeleting: boolean;
   loadMoreRef: RefObject<HTMLDivElement | null>;
   onVote: (commentId: string, direction: "upvote" | "downvote") => void;
+  onEdit: (comment: CommentItem) => void;
+  onDelete: (commentId: string) => void;
 };
 
 const avatarUrl = (comment: CommentItem) =>
@@ -29,8 +32,11 @@ export function CommentList({
   isLoading,
   isFetchingMore,
   isVoting,
+  isDeleting,
   loadMoreRef,
   onVote,
+  onEdit,
+  onDelete,
 }: Props) {
   return (
     <div className="mt-4 max-h-[360px] space-y-3 overflow-y-auto pr-2">
@@ -110,6 +116,25 @@ export function CommentList({
                   <span>👎</span>
                   <span>{comment.downvotes ?? 0}</span>
                 </button>
+                {mine && (
+                  <>
+                    <button
+                      type="button"
+                      className="ml-auto text-slate-500 hover:text-slate-900"
+                      onClick={() => onEdit(comment)}
+                    >
+                      {i18n.t("reviewBoard.submit.edit")}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-red-500 hover:text-red-700 disabled:opacity-60"
+                      onClick={() => onDelete(comment.id)}
+                      disabled={isDeleting}
+                    >
+                      {i18n.t("reviewBoard.submit.delete")}
+                    </button>
+                  </>
+                )}
               </footer>
             </article>
           );

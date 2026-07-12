@@ -21,14 +21,7 @@ export type UserProfile = UserSummary & {
   discord: string;
   hideAvatar: boolean;
   autoCollapse: boolean;
-  admin: boolean;
   bio: string;
-};
-
-export type MyCommentData = {
-  id: string;
-  content: string;
-  score: number;
 };
 
 export type AuthToken = {

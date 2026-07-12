@@ -7,7 +7,6 @@ import type {
   CommentBody,
   CommentItem,
   CommentsPage,
-  MyCommentData,
   UserProfile,
 } from "./types";
 
@@ -80,18 +79,6 @@ export const fetchComments = async (
   };
 };
 
-export const fetchMyComment = async (itemId: string): Promise<MyCommentData | null> => {
-  try {
-    const payload = await apiFetch<{ comment: MyCommentData | null }>(`/comment/${itemId}/my`);
-    return payload?.comment ?? null;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      return null;
-    }
-    throw error;
-  }
-};
-
 export const fetchMyComments = async (
   page = 1,
   limit = 5,
@@ -105,17 +92,20 @@ export const fetchMyComments = async (
   };
 };
 
-export const submitComment = (
-  itemId: string,
-  method: "POST" | "PUT",
-  body: CommentBody,
-) => apiFetch<{ id?: string; updated?: boolean }>(`/comment/${itemId}`, {
-  method,
+export const createComment = (itemId: string, body: CommentBody) =>
+  apiFetch<{ id: string }>(`/comment/${itemId}`, {
+  method: "POST",
   body: JSON.stringify(body),
 });
 
-export const deleteComment = (itemId: string) =>
-  apiFetch<{ deleted: boolean }>(`/comment/${itemId}`, { method: "DELETE" });
+export const updateComment = (commentId: string, body: CommentBody) =>
+  apiFetch<{ updated: boolean }>(`/comment/${commentId}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+
+export const deleteComment = (commentId: string) =>
+  apiFetch<{ deleted: boolean }>(`/comment/${commentId}`, { method: "DELETE" });
 
 export const voteComment = (commentId: string, direction: "upvote" | "downvote") =>
   apiFetch<{ updated: boolean }>(`/comment/${commentId}/${direction}`, { method: "POST" });

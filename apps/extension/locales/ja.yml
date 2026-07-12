@@ -52,10 +52,6 @@ userPanel:
   labels:
     userId: ユーザーID
     discord: Discord
-    admin: 管理者権限
-  adminValue:
-    yes: はい
-    no: いいえ
   sections:
     settings: 基本設定
     profile: プロフィール

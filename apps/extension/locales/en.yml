@@ -52,10 +52,6 @@ userPanel:
   labels:
     userId: User ID
     discord: Discord
-    admin: Admin rights
-  adminValue:
-    yes: Yes
-    no: No
   sections:
     settings: Basic settings
     profile: Profile

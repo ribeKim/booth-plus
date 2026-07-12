@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .admin import build_admin_router
 from .config import Settings, load_settings
 from .database import Database
 from .rate_limit import RateLimitMiddleware
@@ -53,6 +54,7 @@ def create_app(
         max_age=86400,
     )
     app.include_router(build_api_router(settings, database))
+    app.include_router(build_admin_router(settings, database))
     app.add_middleware(
         RateLimitMiddleware,
         window_ms=settings.rate_limit_window_ms,

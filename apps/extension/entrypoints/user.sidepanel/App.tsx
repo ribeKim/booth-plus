@@ -170,12 +170,6 @@ function App() {
               <dt className="text-slate-500">{i18n.t("userPanel.labels.discord")}</dt>
               <dd className="font-semibold text-slate-900">{profileQuery.data.discord}</dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">{i18n.t("userPanel.labels.admin")}</dt>
-              <dd className="font-semibold text-slate-900">
-                {profileQuery.data.admin ? i18n.t("userPanel.adminValue.yes") : i18n.t("userPanel.adminValue.no")}
-              </dd>
-            </div>
           </dl>
         </div>
 

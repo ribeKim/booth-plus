@@ -26,6 +26,7 @@ class Settings:
     refresh_token_ttl_seconds: int
     discord_client_id: str
     discord_client_secret: str
+    admin_redirect_url: str
 
 
 def _integer(env: dict[str, str], name: str, default: int, minimum: int, maximum: int) -> int:
@@ -108,4 +109,5 @@ def load_settings(environment: dict[str, str] | None = None) -> Settings:
         ),
         discord_client_id=env.get("DISCORD_CLIENT_ID", "").strip(),
         discord_client_secret=env.get("DISCORD_CLIENT_SECRET", "").strip(),
+        admin_redirect_url=env.get("ADMIN_REDIRECT_URL", "").strip(),
     )

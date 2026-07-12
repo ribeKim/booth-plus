@@ -29,6 +29,11 @@ CREATE TABLE auth_sessions (
   updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+CREATE TABLE admin_discord_ids (
+  provider_user_id text PRIMARY KEY,
+  created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO admin_discord_ids (provider_user_id) VALUES ('191454176574701568');
 CREATE INDEX auth_sessions_user_state_idx ON auth_sessions(user_id, revoked_at, expires_at);
 CREATE INDEX auth_sessions_expiry_idx ON auth_sessions(expires_at);
 CREATE TABLE shops (
@@ -58,9 +63,9 @@ CREATE TABLE comments (
   content text NOT NULL CHECK (char_length(btrim(content)) > 0),
   score smallint NOT NULL CHECK (score BETWEEN 1 AND 10),
   language text CHECK (language IS NULL OR char_length(btrim(language)) > 0),
+  disabled boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (user_id, product_id),
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -102,6 +107,7 @@ DROP TABLE product_thumbnails;
 DROP TABLE products;
 DROP TABLE shops;
 DROP TABLE auth_sessions;
+DROP TABLE admin_discord_ids;
 DROP TABLE oauth_accounts;
 DROP TABLE users;
 DROP FUNCTION set_updated_at();

@@ -71,6 +71,9 @@ jobs:
       - name: Build backend container
         run: docker build -f apps/backend/Dockerfile -t booth-plus-backend:ci .
 
+      - name: Build admin container
+        run: docker build -f apps/admin/Dockerfile -t booth-plus-admin:ci .
+
   release:
     if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'main'
     runs-on: ubuntu-22.04

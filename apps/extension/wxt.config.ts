@@ -1,11 +1,9 @@
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, WxtViteConfig } from 'wxt';
 
-const apiOrigin = process.env.WXT_API_ORIGIN;
-
-if (!apiOrigin) {
-  throw new Error("WXT_API_ORIGIN is not configured for the selected extension mode");
-}
+// `wxt prepare` runs during workspace installation before a build mode is selected.
+// Every dev/build script still supplies its explicit environment origin.
+const apiOrigin = process.env.WXT_API_ORIGIN ?? "http://localhost:3000";
 
 const apiUrl = new URL(apiOrigin);
 const apiHostPermission = `${apiUrl.protocol}//${apiUrl.host}/api/*`;

@@ -46,6 +46,3 @@ deploy/oci/secrets/
 bun-error.log*
 .DS_Store
 Thumbs.db
-
-# The backend image contains only the Python application.
-apps/extension/

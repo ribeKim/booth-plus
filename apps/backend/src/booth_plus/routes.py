@@ -141,7 +141,9 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
                 )
 
     def validate_redirect_url(redirect_url: str) -> None:
-        if not re.fullmatch(r"https://[a-p]{32}\.chromiumapp\.org/", redirect_url):
+        is_extension = bool(re.fullmatch(r"https://[a-p]{32}\.chromiumapp\.org/", redirect_url))
+        is_admin = bool(settings.admin_redirect_url and redirect_url == settings.admin_redirect_url)
+        if not is_extension and not is_admin:
             raise HTTPException(status_code=400, detail="invalid redirectUrl")
 
     @router.get("/auth/oauth/discord")
@@ -200,6 +202,14 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             f"https://cdn.discordapp.com/avatars/{provider_id}/{avatar}.png" if avatar else None
         )
         async with engine().begin() as connection:
+            is_admin = bool(
+                await connection.scalar(
+                    text(
+                        "SELECT 1 FROM admin_discord_ids WHERE provider_user_id=:provider_id"
+                    ),
+                    {"provider_id": provider_id},
+                )
+            )
             existing = await connection.scalar(
                 text(
                     """SELECT user_id FROM oauth_accounts
@@ -210,8 +220,11 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             user_id = str(existing or secrets.token_urlsafe(18))
             if existing is None:
                 await connection.execute(
-                    text("INSERT INTO users (id, username) VALUES (:id, :username)"),
-                    {"id": user_id, "username": username},
+                    text(
+                        "INSERT INTO users (id, username, admin) "
+                        "VALUES (:id, :username, :admin)"
+                    ),
+                    {"id": user_id, "username": username, "admin": is_admin},
                 )
                 await connection.execute(
                     text("""INSERT INTO oauth_accounts
@@ -225,6 +238,10 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
                     },
                 )
             else:
+                await connection.execute(
+                    text("UPDATE users SET admin=:admin WHERE id=:id"),
+                    {"admin": is_admin, "id": user_id},
+                )
                 await connection.execute(
                     text("""UPDATE oauth_accounts
                         SET provider_username=:username, avatar_url=:avatar
@@ -335,13 +352,14 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
     ) -> dict[str, Any]:
         async with engine().connect() as connection:
             count = await connection.scalar(
-                text("SELECT COUNT(*) FROM comments WHERE product_id=:id"), {"id": product_id}
+                text("SELECT COUNT(*) FROM comments WHERE product_id=:id AND NOT disabled"),
+                {"id": product_id},
             )
             rows = (
                 await connection.execute(
                     text(
                         COMMENT_SELECT
-                        + """ WHERE c.product_id=:id GROUP BY c.id, u.id
+                        + """ WHERE NOT c.disabled AND c.product_id=:id GROUP BY c.id, u.id
                         ORDER BY c.updated_at DESC, c.id DESC LIMIT :limit OFFSET :offset"""
                     ),
                     {"id": product_id, "limit": limit, "offset": (page - 1) * limit},
@@ -357,37 +375,20 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
     ) -> dict[str, Any]:
         async with engine().connect() as connection:
             count = await connection.scalar(
-                text("SELECT COUNT(*) FROM comments WHERE user_id=:id"), {"id": user_id}
+                text("SELECT COUNT(*) FROM comments WHERE user_id=:id AND NOT disabled"),
+                {"id": user_id},
             )
             rows = (
                 await connection.execute(
                     text(
                         COMMENT_SELECT
-                        + """ WHERE c.user_id=:id GROUP BY c.id, u.id
+                        + """ WHERE NOT c.disabled AND c.user_id=:id GROUP BY c.id, u.id
                         ORDER BY c.updated_at DESC, c.id DESC LIMIT :limit OFFSET :offset"""
                     ),
                     {"id": user_id, "limit": limit, "offset": (page - 1) * limit},
                 )
             ).all()
         return {"count": int(count or 0), "comments": [_comment(row) for row in rows]}
-
-    @router.get("/comment/{product_id}/my")
-    async def my_comment(
-        product_id: str, user_id: Annotated[str, Depends(current_user)]
-    ) -> dict[str, Any]:
-        async with engine().connect() as connection:
-            row = (
-                await connection.execute(
-                    text(
-                        """SELECT id, content, score FROM comments
-                        WHERE product_id=:product AND user_id=:user"""
-                    ),
-                    {"product": product_id, "user": user_id},
-                )
-            ).first()
-        if row is None:
-            return {"comment": None}
-        return {"comment": _row(row)}
 
     @router.post("/comment/{product_id}")
     async def create_comment(
@@ -409,38 +410,35 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
                 raise HTTPException(status_code=404, detail="product not found")
             await save_product(booth_product)
         async with engine().begin() as connection:
-            try:
-                await connection.execute(
-                    text(
-                        """INSERT INTO comments (id, product_id, user_id, content, score)
-                        VALUES (:id, :product, :user, :content, :score)"""
-                    ),
-                    {
-                        "id": comment_id,
-                        "product": product_id,
-                        "user": user_id,
-                        "content": body.content.strip(),
-                        "score": body.score,
-                    },
-                )
-            except Exception as error:
-                raise HTTPException(status_code=409, detail="comment already exists") from error
+            await connection.execute(
+                text(
+                    """INSERT INTO comments (id, product_id, user_id, content, score)
+                    VALUES (:id, :product, :user, :content, :score)"""
+                ),
+                {
+                    "id": comment_id,
+                    "product": product_id,
+                    "user": user_id,
+                    "content": body.content.strip(),
+                    "score": body.score,
+                },
+            )
         return {"id": comment_id}
 
-    @router.put("/comment/{product_id}")
+    @router.put("/comment/{comment_id}")
     async def update_comment(
-        product_id: str, body: CommentBody, user_id: Annotated[str, Depends(current_user)]
+        comment_id: str, body: CommentBody, user_id: Annotated[str, Depends(current_user)]
     ) -> dict[str, bool]:
         async with engine().begin() as connection:
             result = await connection.execute(
                 text(
                     """UPDATE comments SET content=:content, score=:score
-                    WHERE product_id=:product AND user_id=:user"""
+                    WHERE id=:comment AND user_id=:user AND NOT disabled"""
                 ),
                 {
                     "content": body.content.strip(),
                     "score": body.score,
-                    "product": product_id,
+                    "comment": comment_id,
                     "user": user_id,
                 },
             )
@@ -448,14 +446,14 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             raise HTTPException(status_code=404, detail="comment not found")
         return {"updated": True}
 
-    @router.delete("/comment/{product_id}")
+    @router.delete("/comment/{comment_id}")
     async def delete_comment(
-        product_id: str, user_id: Annotated[str, Depends(current_user)]
+        comment_id: str, user_id: Annotated[str, Depends(current_user)]
     ) -> dict[str, bool]:
         async with engine().begin() as connection:
             result = await connection.execute(
-                text("DELETE FROM comments WHERE product_id=:product AND user_id=:user"),
-                {"product": product_id, "user": user_id},
+                text("DELETE FROM comments WHERE id=:comment AND user_id=:user"),
+                {"comment": comment_id, "user": user_id},
             )
         if result.rowcount != 1:
             raise HTTPException(status_code=404, detail="comment not found")
@@ -464,7 +462,8 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
     async def vote(comment_id: str, value: int, user_id: str) -> dict[str, bool]:
         async with engine().begin() as connection:
             owner = await connection.scalar(
-                text("SELECT user_id FROM comments WHERE id=:id"), {"id": comment_id}
+                text("SELECT user_id FROM comments WHERE id=:id AND NOT disabled"),
+                {"id": comment_id},
             )
             if owner is None:
                 raise HTTPException(status_code=404, detail="comment not found")

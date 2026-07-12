@@ -55,7 +55,7 @@ oauth_accounts = Table(
     Base.metadata,
     Column("provider", Text, primary_key=True),
     Column("provider_user_id", Text, primary_key=True),
-    Column("user_id", Text, ForeignKey("users.id", ondelete="CASCADE")),
+    Column("user_id", Text, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
     Column("provider_username", Text, nullable=False),
     Column("avatar_url", Text),
     *timestamp_columns(),
@@ -73,6 +73,13 @@ auth_sessions = Table(
     Column("last_used_at", DateTime(timezone=True)),
     Column("revoked_at", DateTime(timezone=True)),
     *timestamp_columns(),
+)
+
+admin_discord_ids = Table(
+    "admin_discord_ids",
+    Base.metadata,
+    Column("provider_user_id", Text, primary_key=True),
+    Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
 Index(
     "auth_sessions_user_state_idx",
@@ -124,15 +131,15 @@ comments = Table(
     Base.metadata,
     Column("id", Text, primary_key=True),
     Column("product_id", Text, ForeignKey("products.id", ondelete="CASCADE"), nullable=False),
-    Column("user_id", Text, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", Text, ForeignKey("users.id", ondelete="CASCADE")),
     Column("content", Text, nullable=False),
     Column("score", SmallInteger, nullable=False),
     Column("language", Text),
+    Column("disabled", Boolean, nullable=False, server_default="false"),
     *timestamp_columns(),
     CheckConstraint("char_length(btrim(content)) > 0"),
     CheckConstraint("score BETWEEN 1 AND 10"),
     CheckConstraint("language IS NULL OR char_length(btrim(language)) > 0"),
-    UniqueConstraint("user_id", "product_id"),
 )
 Index(
     "comments_product_new_idx",

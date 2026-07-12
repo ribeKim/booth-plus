@@ -12,10 +12,11 @@ from .config import Settings
 READINESS_QUERY = """
 SELECT NOT pg_is_in_recovery()
   AND current_setting('transaction_read_only') = 'off'
-  AND EXISTS (SELECT 1 FROM public.alembic_version WHERE version_num = '0001_initial')
+  AND EXISTS (SELECT 1 FROM public.alembic_version)
   AND to_regclass('public.users') IS NOT NULL
   AND to_regclass('public.oauth_accounts') IS NOT NULL
   AND to_regclass('public.auth_sessions') IS NOT NULL
+  AND to_regclass('public.admin_discord_ids') IS NOT NULL
   AND to_regclass('public.shops') IS NOT NULL
   AND to_regclass('public.products') IS NOT NULL
   AND to_regclass('public.product_thumbnails') IS NOT NULL

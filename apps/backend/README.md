@@ -36,6 +36,19 @@ SQLAlchemy 2.x provides the async application engine and schema metadata. Alembi
 
 Use either `DATABASE_URL` or `DATABASE_URL_FILE`, never both. Production uses `DATABASE_SSL_MODE=verify-full` with `DATABASE_SSL_CA_FILE`; local development uses `disable`. Rate limiting is controlled with `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`, and `RATE_LIMIT_WRITE_MAX_REQUESTS`.
 
-The frontend-facing Discord authentication, user profile, product lookup/search,
-review CRUD, and review voting APIs are implemented. Configure `AUTH_SECRET`,
-`DISCORD_CLIENT_ID`, and `DISCORD_CLIENT_SECRET` before using Discord login.
+The frontend-facing Discord authentication, user profile, review CRUD, and review voting APIs
+are implemented. Configure `AUTH_SECRET`, `DISCORD_CLIENT_ID`, and `DISCORD_CLIENT_SECRET` before
+using Discord login.
+
+## Administration and legacy import
+
+Administrator Discord IDs are seeded into the `admin_discord_ids` table by Alembic. A matching
+Discord login receives `users.admin=true`; removing an ID from the allowlist takes effect on the
+next login. Admin endpoints support comment search, hide/restore, deletion, and Mongo-style JSON
+comment import. The standalone `apps/admin` web application exposes these tools only when
+`/api/user/me` reports `admin=true`. Configure `ADMIN_REDIRECT_URL` with its exact Discord OAuth
+callback URL; production serves the app at `/admin/`.
+
+The importer accepts JSON arrays, `{ "comments": [...] }`, or JSONL from the admin web UI. It maps
+legacy `_id`, `productId`, `userId`, timestamps, disabled state, and vote-user arrays. Stored
+`upvotes` and `downvotes` counts are ignored because current counts are derived from vote rows.
