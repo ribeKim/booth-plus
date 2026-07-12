@@ -8,7 +8,7 @@ import {
 import { authTokenStorage } from "@/utils/storage";
 import { CommentItem, MyCommentData, ReviewProduct, UserProfile } from "./types";
 
-const API_ORIGIN = "https://vbt.kamyu.me";
+const API_ORIGIN = import.meta.env.WXT_API_ORIGIN;
 export const API_BASE = `${API_ORIGIN}/api`;
 
 const defaultHeaders = {

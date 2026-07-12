@@ -1,6 +1,15 @@
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, WxtViteConfig } from 'wxt';
 
+const apiOrigin = process.env.WXT_API_ORIGIN;
+
+if (!apiOrigin) {
+  throw new Error("WXT_API_ORIGIN is not configured for the selected extension mode");
+}
+
+const apiUrl = new URL(apiOrigin);
+const apiHostPermission = `${apiUrl.protocol}//${apiUrl.host}/api/*`;
+
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   vite: (): WxtViteConfig => ({
@@ -13,7 +22,7 @@ export default defineConfig({
     key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp7FZB6bFp2sn1uhlBE8K8hYQHsLaAl622sNlZhC/JEnhpKLNpp1DXbbBLyENUheH/yEd5McB3BvOJBNYD2w+Z7BjGvvCcGpBRiOoI/MHyrwqcDKzCdTbu8IQXqcSp2s+JPJhHMYZCwK7kLPV/5aT0x1n2SuizagWNIPeAgNU4vh04OQUXvb6gs/sMLbgH/F8S9ZNU/gOo0A/JabvEBmiMM/KgCTP8tu6m9bNittSdkzWAsheYV3i0MYAv1frhfI/QfoRb4PlP3jf92t4/TRM0/XwFMsVzD8SFRX6fMX/lf3j1tH1LWGJfpHHD0yeOLHsEFAwjJ3pDZcuWsNiL6tENQIDAQAB",
     default_locale: "ko",
     permissions: ["identity", "tabs", "storage", "sidePanel"],
-    host_permissions: [ "*://vbt.kamyu.me/api/**/*", "*://discord.com/**/*" ],
+    host_permissions: [apiHostPermission, "*://discord.com/*"],
     
   },
   webExt: {
