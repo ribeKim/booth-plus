@@ -47,34 +47,6 @@ def _comment(row: Any) -> dict[str, Any]:
     }
 
 
-def _product(row: Any) -> dict[str, Any]:
-    item = _row(row)
-    return {
-        "id": item["id"],
-        "title": item["title"],
-        "price": item["price"],
-        "url": item["url"],
-        "score": float(item["score"] or 0),
-        "thumbnails": item["thumbnails"] or [],
-        "category": item["category"],
-        "shop": {
-            "id": item["shop_id"],
-            "name": item["shop_name"],
-            "url": item["shop_url"],
-            "avatar": item["shop_avatar"],
-        },
-    }
-
-
-PRODUCT_SELECT = """
-SELECT p.id, p.title, p.price, p.url, p.category, p.shop_id,
-       s.name AS shop_name, s.url AS shop_url, s.avatar_url AS shop_avatar,
-       COALESCE((SELECT AVG(c.score) FROM comments c WHERE c.product_id = p.id), 0) AS score,
-       COALESCE((SELECT array_agg(t.url ORDER BY t.position) FROM product_thumbnails t
-                 WHERE t.product_id = p.id), ARRAY[]::text[]) AS thumbnails
-FROM products p JOIN shops s ON s.id = p.shop_id
-"""
-
 COMMENT_SELECT = """
 SELECT c.id, c.content, c.score, c.language, c.updated_at, c.user_id, u.username,
        COUNT(v.*) FILTER (WHERE v.value = 1)::int AS upvotes,
@@ -355,33 +327,6 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
         if not url:
             raise HTTPException(status_code=404, detail="avatar not found")
         return RedirectResponse(str(url))
-
-    @router.get("/product/search")
-    async def product_search(query: str, limit: int = Query(6, ge=1, le=100)) -> dict[str, Any]:
-        async with engine().connect() as connection:
-            rows = (
-                await connection.execute(
-                    text(
-                        PRODUCT_SELECT
-                        + """ WHERE p.title ILIKE :query OR p.url ILIKE :query
-                        ORDER BY p.updated_at DESC LIMIT :limit"""
-                    ),
-                    {"query": f"%{query}%", "limit": limit},
-                )
-            ).all()
-        return {"products": [_product(row) for row in rows]}
-
-    @router.get("/product/{product_id}")
-    async def product(product_id: str) -> dict[str, Any]:
-        async with engine().connect() as connection:
-            row = (
-                await connection.execute(
-                    text(PRODUCT_SELECT + " WHERE p.id=:id"), {"id": product_id}
-                )
-            ).first()
-        if row is None:
-            raise HTTPException(status_code=404, detail="product not found")
-        return {"product": _product(row)}
 
     @router.get("/comment")
     async def comments(

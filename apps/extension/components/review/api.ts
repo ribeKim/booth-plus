@@ -1,10 +1,4 @@
-import {
-  ApiError,
-  buildSearchCandidates,
-  matchesNormalizedUrl,
-  normalizeUrl,
-  readResponseText,
-} from "@/utils/review-utils";
+import { ApiError, readResponseText } from "@/utils/review-utils";
 import { authTokenStorage } from "@/utils/storage";
 import { CommentItem, MyCommentData, ReviewProduct, UserProfile } from "./types";
 
@@ -105,29 +99,11 @@ const extractProductIdFromPath = (path: string) => {
   return match[1];
 };
 
-export const fetchProductById = async (productId: string): Promise<ReviewProduct | null> => {
-  try {
-    const payload = await apiFetch(`/product/${productId}`);
-    return payload?.product ?? null;
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
-      return null;
-    }
-    throw error;
-  }
-};
-
 export const findProductForCurrentPage = async (): Promise<ReviewProduct | null> => {
-  const normalizedPage = normalizeUrl(window.location.href);
-  const productIdFromPath = extractProductIdFromPath(new URL(window.location.href).pathname);
+  const pageUrl = new URL(window.location.href);
+  const productIdFromPath = extractProductIdFromPath(pageUrl.pathname);
 
   if (productIdFromPath) {
-    const directProduct = await fetchProductById(productIdFromPath);
-    if (directProduct) {
-      return directProduct;
-    }
-
-    const pageUrl = new URL(window.location.href);
     const shopId = pageUrl.hostname.endsWith(".booth.pm")
       ? pageUrl.hostname.slice(0, -".booth.pm".length)
       : "booth";
@@ -135,7 +111,7 @@ export const findProductForCurrentPage = async (): Promise<ReviewProduct | null>
       id: productIdFromPath,
       title: document.title,
       price: "",
-      url: normalizedPage,
+      url: pageUrl.href,
       score: 0,
       thumbnails: [],
       category: "",
@@ -146,21 +122,6 @@ export const findProductForCurrentPage = async (): Promise<ReviewProduct | null>
         avatar: "",
       },
     };
-  }
-
-  const candidates = buildSearchCandidates();
-
-  for (const candidate of candidates) {
-    if (!candidate) {
-      continue;
-    }
-
-    const payload = await apiFetch(`/product/search?limit=6&query=${encodeURIComponent(candidate)}`);
-    const fetchedProducts: ReviewProduct[] = Array.isArray(payload?.products) ? payload.products : [];
-    const match = fetchedProducts.find((product) => matchesNormalizedUrl(product.url, normalizedPage));
-    if (match) {
-      return match;
-    }
   }
 
   return null;

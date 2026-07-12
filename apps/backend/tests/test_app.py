@@ -76,8 +76,6 @@ async def test_frontend_api_routes_are_registered() -> None:
         ("PUT", "/api/user/username"),
         ("PUT", "/api/user/bio"),
         ("GET", "/api/user/avatar/{user_id}"),
-        ("GET", "/api/product/search"),
-        ("GET", "/api/product/{product_id}"),
         ("GET", "/api/comment"),
         ("GET", "/api/comment/my"),
         ("GET", "/api/comment/{product_id}/my"),
@@ -88,6 +86,8 @@ async def test_frontend_api_routes_are_registered() -> None:
         ("POST", "/api/comment/{comment_id}/downvote"),
     }
     assert expected <= registered
+    assert ("GET", "/api/product/search") not in registered
+    assert ("GET", "/api/product/{product_id}") not in registered
 
 
 async def test_protected_route_requires_authentication() -> None:
