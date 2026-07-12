@@ -56,9 +56,9 @@ bun run dev:backend
 
 ## OCI 배포와 가용성
 
-운영 백엔드는 하나의 OCI VM에서 Docker Compose로 실행하고, 데이터는 **OCI Database with PostgreSQL**에 저장합니다. 데이터베이스 시스템을 최소 2노드로 구성하면 장애 시 서비스가 복제본을 주 노드로 승격해 데이터베이스 계층의 자동 failover를 제공할 수 있습니다.
+운영 환경은 하나의 OCI VM에서 Caddy, FastAPI, PostgreSQL을 Docker Compose로 실행합니다. PostgreSQL 5432와 FastAPI 3000은 외부에 공개하지 않고 Compose 내부 네트워크에서만 연결합니다.
 
-다만 VM은 한 대뿐이므로 VM 또는 해당 VM이 속한 장애 도메인에 문제가 생기면 API도 중단됩니다. 컨테이너의 restart policy는 프로세스 장애에는 대응하지만 VM 장애를 이중화하지는 않습니다. 따라서 이 구성에서 PostgreSQL은 고가용성으로 만들 수 있어도 애플리케이션 전체는 고가용성 구성이 아니며, 단일 VM이 명확한 SPOF(single point of failure)로 남습니다.
+VM이 한 대뿐이므로 VM이나 디스크 장애 시 API와 데이터베이스가 함께 중단됩니다. Docker restart policy는 프로세스 장애와 재부팅에는 대응하지만 이중화나 failover를 제공하지 않습니다. 정기 백업을 VM 외부 저장소로 복사하고 복구 절차를 테스트해야 합니다.
 
 네트워크, TLS, 비밀값, 마이그레이션 및 배포 절차는 [OCI 단일 VM 배포 가이드](deploy/oci/README.md)를 따릅니다.
 

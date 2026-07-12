@@ -3,8 +3,12 @@ name: booth-plus-oci
 x-backend-environment: &backend-environment
   HOST: 0.0.0.0
   PORT: "3000"
-  DATABASE_SSL_MODE: verify-full
-  DATABASE_SSL_CA_FILE: /run/secrets/oci-postgresql-ca.pem
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: booth_plus
+  DATABASE_USER: booth_plus
+  DATABASE_PASSWORD_FILE: /run/secrets/postgres-password
+  DATABASE_SSL_MODE: disable
   CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in deploy/oci/.env}
   RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
   RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-300}
@@ -15,8 +19,8 @@ x-backend-service: &backend-service
   build:
     context: ../..
     dockerfile: apps/backend/Dockerfile
-  volumes:
-    - ${DATABASE_SSL_CA_HOST_FILE:?Set DATABASE_SSL_CA_HOST_FILE in deploy/oci/.env}:/run/secrets/oci-postgresql-ca.pem:ro,z
+  secrets:
+    - postgres-password
   networks:
     - application
   read_only: true
@@ -29,14 +33,37 @@ x-backend-service: &backend-service
   stop_grace_period: 35s
 
 services:
+  postgres:
+    image: postgres:17.10-alpine3.24
+    environment:
+      POSTGRES_DB: booth_plus
+      POSTGRES_USER: booth_plus
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+    secrets:
+      - postgres-password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - application
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booth_plus -d booth_plus"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    shm_size: 256mb
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
   migrate:
     <<: *backend-service
     profiles: ["migrate"]
     environment:
       <<: *backend-environment
-      DATABASE_URL_FILE: /run/secrets/migration-database-url
-    secrets:
-      - migration-database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
     command: ["python", "scripts/migrate.py"]
     restart: "no"
 
@@ -44,9 +71,9 @@ services:
     <<: *backend-service
     environment:
       <<: *backend-environment
-      DATABASE_URL_FILE: /run/secrets/database-url
-    secrets:
-      - database-url
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose:
       - "3000"
     healthcheck:
@@ -94,11 +121,10 @@ networks:
   application:
 
 volumes:
+  postgres-data:
   caddy-data:
   caddy-config:
 
 secrets:
-  database-url:
-    file: ${DATABASE_URL_HOST_FILE:?Set DATABASE_URL_HOST_FILE in deploy/oci/.env}
-  migration-database-url:
-    file: ${MIGRATION_DATABASE_URL_HOST_FILE:?Set MIGRATION_DATABASE_URL_HOST_FILE in deploy/oci/.env}
+  postgres-password:
+    file: ${POSTGRES_PASSWORD_HOST_FILE:?Set POSTGRES_PASSWORD_HOST_FILE in deploy/oci/.env}

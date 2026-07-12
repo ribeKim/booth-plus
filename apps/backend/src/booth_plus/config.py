@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, quote, urlsplit
 
 
 @dataclass(frozen=True)
@@ -36,9 +36,27 @@ def _integer(env: dict[str, str], name: str, default: int, minimum: int, maximum
 def _database_url(env: dict[str, str]) -> str:
     inline = env.get("DATABASE_URL", "").strip()
     file_name = env.get("DATABASE_URL_FILE", "").strip()
-    if inline and file_name:
-        raise ValueError("Set only one of DATABASE_URL or DATABASE_URL_FILE")
-    value = Path(file_name).read_text(encoding="utf-8").strip() if file_name else inline
+    password_file = env.get("DATABASE_PASSWORD_FILE", "").strip()
+    if sum(bool(item) for item in (inline, file_name, password_file)) > 1:
+        raise ValueError(
+            "Set exactly one of DATABASE_URL, DATABASE_URL_FILE, or DATABASE_PASSWORD_FILE"
+        )
+    if password_file:
+        password = Path(password_file).read_text(encoding="utf-8").strip()
+        host = env.get("DATABASE_HOST", "").strip()
+        user = env.get("DATABASE_USER", "").strip()
+        name = env.get("DATABASE_NAME", "").strip()
+        port = _integer(env, "DATABASE_PORT", 5432, 1, 65535)
+        if not password or not host or not user or not name:
+            raise ValueError(
+                "DATABASE_PASSWORD_FILE requires DATABASE_HOST, DATABASE_USER, and DATABASE_NAME"
+            )
+        value = (
+            f"postgresql://{quote(user, safe='')}:{quote(password, safe='')}@"
+            f"{host}:{port}/{quote(name, safe='')}"
+        )
+    else:
+        value = Path(file_name).read_text(encoding="utf-8").strip() if file_name else inline
     parsed = urlsplit(value)
     if parsed.scheme not in {"postgres", "postgresql"} or not parsed.hostname:
         raise ValueError("DATABASE_URL must be a valid PostgreSQL URL")
