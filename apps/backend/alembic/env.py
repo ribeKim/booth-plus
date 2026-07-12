@@ -6,7 +6,7 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from booth_plus.config import load_settings
-from booth_plus.database import connection_kwargs, sqlalchemy_url
+from booth_plus.database import alembic_config_url, connection_kwargs
 from booth_plus.models import Base
 
 config = context.config
@@ -19,7 +19,7 @@ if not config.get_main_option("sqlalchemy.url"):
     settings = load_settings()
     config.set_main_option(
         "sqlalchemy.url",
-        sqlalchemy_url(settings.database_url).render_as_string(hide_password=False),
+        alembic_config_url(settings.database_url),
     )
     config.attributes["connection_kwargs"] = connection_kwargs(settings)
 

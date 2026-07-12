@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, inspect, text
 from alembic import command
 from alembic.config import Config
 from booth_plus.config import load_settings
-from booth_plus.database import connection_kwargs, sqlalchemy_url
+from booth_plus.database import alembic_config_url, connection_kwargs, sqlalchemy_url
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -17,7 +17,7 @@ def main() -> None:
     url = sqlalchemy_url(settings.database_url)
     config = Config(ROOT / "alembic.ini")
     config.set_main_option("script_location", str(ROOT / "alembic"))
-    config.set_main_option("sqlalchemy.url", url.render_as_string(hide_password=False))
+    config.set_main_option("sqlalchemy.url", alembic_config_url(settings.database_url))
     config.attributes["connection_kwargs"] = connection_kwargs(settings)
 
     # Databases created by the former node-pg-migrate/custom runner already

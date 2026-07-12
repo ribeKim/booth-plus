@@ -44,6 +44,12 @@ def sqlalchemy_url(database_url: str) -> URL:
     return url.set(drivername="postgresql+psycopg")
 
 
+def alembic_config_url(database_url: str) -> str:
+    # Alembic stores options in ConfigParser, where percent signs introduce
+    # interpolation. Doubling them preserves URL-encoded credentials.
+    return sqlalchemy_url(database_url).render_as_string(hide_password=False).replace("%", "%%")
+
+
 class Database:
     def __init__(self, settings: Settings) -> None:
         self.engine: AsyncEngine = create_async_engine(
