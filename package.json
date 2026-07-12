@@ -20,6 +20,7 @@
     "dev:extension": "bun run --filter @booth-plus/extension dev",
     "dev:backend": "uv run --project apps/backend uvicorn booth_plus.app:create_app --factory --reload --host 0.0.0.0 --port 3000",
     "db:migrate": "uv run --project apps/backend python apps/backend/scripts/migrate.py",
+    "db:migration:create": "uv run --project apps/backend alembic -c apps/backend/alembic.ini revision --autogenerate",
     "test:backend": "uv run --project apps/backend pytest -c apps/backend/pyproject.toml apps/backend/tests",
     "lint:backend": "uv run --project apps/backend ruff check apps/backend && uv run --project apps/backend mypy --config-file apps/backend/pyproject.toml",
     "docker:build:backend": "docker build -f apps/backend/Dockerfile -t booth-plus-backend:local .",

@@ -3,14 +3,16 @@ from __future__ import annotations
 from math import ceil
 from typing import Any
 
-from psycopg_pool import AsyncConnectionPool
+from sqlalchemy import text
+from sqlalchemy.engine import URL, make_url
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from .config import Settings
 
 READINESS_QUERY = """
 SELECT NOT pg_is_in_recovery()
   AND current_setting('transaction_read_only') = 'off'
-  AND EXISTS (SELECT 1 FROM public.app_migrations WHERE name = '0001_initial')
+  AND EXISTS (SELECT 1 FROM public.alembic_version WHERE version_num = '0001_initial')
   AND to_regclass('public.users') IS NOT NULL
   AND to_regclass('public.oauth_accounts') IS NOT NULL
   AND to_regclass('public.auth_sessions') IS NOT NULL
@@ -37,24 +39,30 @@ def connection_kwargs(settings: Settings) -> dict[str, Any]:
     return kwargs
 
 
+def sqlalchemy_url(database_url: str) -> URL:
+    url = make_url(database_url)
+    return url.set(drivername="postgresql+psycopg")
+
+
 class Database:
     def __init__(self, settings: Settings) -> None:
-        self.pool = AsyncConnectionPool(
-            settings.database_url,
-            kwargs=connection_kwargs(settings),
-            min_size=0,
-            max_size=settings.database_pool_max,
-            open=False,
+        self.engine: AsyncEngine = create_async_engine(
+            sqlalchemy_url(settings.database_url),
+            connect_args=connection_kwargs(settings),
+            pool_size=settings.database_pool_max,
+            max_overflow=0,
+            pool_pre_ping=True,
+            pool_recycle=settings.database_max_lifetime_seconds,
         )
 
     async def open(self) -> None:
-        await self.pool.open(wait=True)
+        async with self.engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
 
     async def close(self) -> None:
-        await self.pool.close()
+        await self.engine.dispose()
 
     async def is_ready(self) -> bool:
-        async with self.pool.connection() as connection, connection.cursor() as cursor:
-            await cursor.execute(READINESS_QUERY)
-            row = await cursor.fetchone()
-        return bool(row and row[0])
+        async with self.engine.connect() as connection:
+            result = await connection.scalar(text(READINESS_QUERY))
+        return result is True

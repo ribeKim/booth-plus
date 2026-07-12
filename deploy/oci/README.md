@@ -77,15 +77,15 @@ GRANT USAGE, SELECT
   ON ALL SEQUENCES IN SCHEMA public TO :"app_role";
 ```
 
-The `GRANT ... ON ALL` statements are idempotent and also reconcile a database where application tables already exist. After the first migration creates `public.app_migrations`, keep the readiness lookup but remove unnecessary mutation privileges from that migration ledger:
+The `GRANT ... ON ALL` statements are idempotent and also reconcile a database where application tables already exist. After the first migration creates `public.alembic_version`, keep the readiness lookup but remove unnecessary mutation privileges from that Alembic ledger:
 
 ```sql
 \set ON_ERROR_STOP on
 \set app_role booth_plus_app
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
-  ON TABLE public.app_migrations FROM :"app_role";
-GRANT SELECT ON TABLE public.app_migrations TO :"app_role";
+  ON TABLE public.alembic_version FROM :"app_role";
+GRANT SELECT ON TABLE public.alembic_version TO :"app_role";
 ```
 
 Run the last block as the migration role. Migrations and schema objects remain owned by that role; the long-running application can connect, use `public`, read its migration readiness row, perform application CRUD, and use generated-key sequences, but cannot perform DDL.
@@ -190,13 +190,13 @@ Prepare one backend image, run the one-shot migration from that image, and then 
 ```sh
 bun run deploy:build
 bun run deploy:migrate
-# On the first deployment, run the app_migrations privilege block above here.
+# On the first deployment, run the alembic_version privilege block above here.
 bun run deploy:backend
 ```
 
 For an image published by CI, set `BACKEND_IMAGE` to its immutable tag or digest and replace `bun run deploy:build` with `bun run deploy:pull`. Do not run both for one release. `deploy:migrate` disables dependency startup, pulling, and building; `deploy:backend` disables building and only pulls a missing image such as Caddy. Consequently, migration and runtime use the exact `BACKEND_IMAGE` prepared in the first step.
 
-The migration container runs the FastAPI image's Python migration script and exits. It is behind the `migrate` profile so a normal `up -d` cannot rerun schema changes accidentally. Caddy is the only public service; the backend is reachable only on the private Compose network. Caddy runs with a read-only root filesystem, no-new-privileges, all capabilities dropped except `NET_BIND_SERVICE`, and writable state limited to `/data`, `/config`, and a temporary `/tmp`.
+The migration container runs `alembic upgrade head` through the FastAPI image's migration wrapper and exits. It also recognizes the legacy `app_migrations` marker and stamps an already initialized database instead of recreating tables. It is behind the `migrate` profile so a normal `up -d` cannot rerun schema changes accidentally. The deployment workflow stops before replacing the backend if Alembic fails. Caddy is the only public service; the backend is reachable only on the private Compose network. Caddy runs with a read-only root filesystem, no-new-privileges, all capabilities dropped except `NET_BIND_SERVICE`, and writable state limited to `/data`, `/config`, and a temporary `/tmp`.
 
 Caddy obtains a public TLS certificate for `APP_DOMAIN`, so DNS and ports 80/443 must be ready before it starts. Its persistent volumes retain ACME state across container replacements.
 

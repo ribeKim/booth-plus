@@ -17,6 +17,7 @@ class Settings:
     database_pool_max: int
     database_connect_timeout_ms: int
     database_statement_timeout_ms: int
+    database_max_lifetime_seconds: int
     rate_limit_window_ms: int
     rate_limit_max_requests: int
     rate_limit_write_max_requests: int
@@ -70,6 +71,9 @@ def load_settings(environment: dict[str, str] | None = None) -> Settings:
         database_connect_timeout_ms=_integer(env, "DATABASE_CONNECT_TIMEOUT_MS", 5000, 100, 60000),
         database_statement_timeout_ms=_integer(
             env, "DATABASE_STATEMENT_TIMEOUT_MS", 5000, 100, 120000
+        ),
+        database_max_lifetime_seconds=_integer(
+            env, "DATABASE_MAX_LIFETIME_SECONDS", 300, 30, 86400
         ),
         rate_limit_window_ms=_integer(env, "RATE_LIMIT_WINDOW_MS", 60000, 1000, 3600000),
         rate_limit_max_requests=_integer(env, "RATE_LIMIT_MAX_REQUESTS", 300, 1, 100000),

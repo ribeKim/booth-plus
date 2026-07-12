@@ -2,37 +2,43 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import psycopg
+from sqlalchemy import create_engine, inspect, text
 
+from alembic import command
+from alembic.config import Config
 from booth_plus.config import load_settings
-from booth_plus.database import connection_kwargs
+from booth_plus.database import connection_kwargs, sqlalchemy_url
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def main() -> None:
     settings = load_settings()
-    migrations = Path(__file__).resolve().parent.parent / "migrations"
-    with psycopg.connect(settings.database_url, **connection_kwargs(settings)) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """CREATE TABLE IF NOT EXISTS public.app_migrations (
-                    id serial PRIMARY KEY,
-                    name text NOT NULL UNIQUE,
-                    run_on timestamptz NOT NULL DEFAULT now()
-                )"""
-            )
-            for path in sorted(migrations.glob("*.sql")):
-                name = path.stem
-                cursor.execute("SELECT 1 FROM public.app_migrations WHERE name = %s", (name,))
-                if cursor.fetchone():
-                    continue
-                up_sql = (
-                    path.read_text(encoding="utf-8")
-                    .split("-- Down Migration", 1)[0]
-                    .replace("-- Up Migration", "", 1)
+    url = sqlalchemy_url(settings.database_url)
+    config = Config(ROOT / "alembic.ini")
+    config.set_main_option("script_location", str(ROOT / "alembic"))
+    config.set_main_option("sqlalchemy.url", url.render_as_string(hide_password=False))
+    config.attributes["connection_kwargs"] = connection_kwargs(settings)
+
+    # Databases created by the former node-pg-migrate/custom runner already
+    # contain the initial schema. Stamp those once instead of recreating tables.
+    engine = create_engine(url, connect_args=connection_kwargs(settings))
+    with engine.connect() as connection:
+        tables = set(inspect(connection).get_table_names(schema="public"))
+        legacy_applied = False
+        if "alembic_version" not in tables and "app_migrations" in tables:
+            legacy_applied = bool(
+                connection.scalar(
+                    text("SELECT 1 FROM public.app_migrations WHERE name = :name"),
+                    {"name": "0001_initial"},
                 )
-                cursor.execute(up_sql)
-                cursor.execute("INSERT INTO public.app_migrations (name) VALUES (%s)", (name,))
-        connection.commit()
+            )
+    engine.dispose()
+
+    if legacy_applied:
+        command.stamp(config, "head")
+    else:
+        command.upgrade(config, "head")
 
 
 if __name__ == "__main__":

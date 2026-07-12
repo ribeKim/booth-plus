@@ -14,6 +14,8 @@ WORKDIR /app
 COPY --from=dependencies /app/.venv /app/.venv
 COPY --chown=app:app apps/backend/src ./src
 COPY --chown=app:app apps/backend/scripts ./scripts
+COPY --chown=app:app apps/backend/alembic.ini ./alembic.ini
+COPY --chown=app:app apps/backend/alembic ./alembic
 COPY --chown=app:app apps/backend/migrations ./migrations
 USER app
 
