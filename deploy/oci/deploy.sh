@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-backend_image_ref="${1:?Usage: deploy.sh <immutable-backend-image> <immutable-admin-image>}"
-admin_image_ref="${2:?Usage: deploy.sh <immutable-backend-image> <immutable-admin-image>}"
+usage="Usage: deploy.sh <immutable-backend-image> <immutable-admin-image> <admin-domain> <admin-redirect-url>"
+backend_image_ref="${1:?$usage}"
+admin_image_ref="${2:?$usage}"
+admin_domain="${3:?$usage}"
+admin_redirect_url="${4:?$usage}"
 deploy_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$deploy_root"
 
 [[ "$backend_image_ref" == ghcr.io/ribekim/booth-plus-backend@sha256:* ]]
 [[ "$admin_image_ref" == ghcr.io/ribekim/booth-plus-admin@sha256:* ]]
+[[ "$admin_domain" =~ ^[A-Za-z0-9.-]+$ ]]
+[[ "$admin_redirect_url" =~ ^https://[A-Za-z0-9.-]+/oauth/callback$ ]]
 
 export BACKEND_IMAGE="$backend_image_ref"
 export ADMIN_IMAGE="$admin_image_ref"
+export ADMIN_DOMAIN="$admin_domain"
+export ADMIN_REDIRECT_URL="$admin_redirect_url"
 compose=(docker compose --env-file deploy/oci/.env -f deploy/oci/compose.yaml)
 
 diagnostics() {

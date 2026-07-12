@@ -88,7 +88,7 @@ APP_HEALTH_URL=https://booth-plus.ribe.moe/api/health/storage
 
 The federated identity needs only the `auth_keys` scope and `tag:github-actions-dev`. Constrain its subject to `repo:ribeKim/booth-plus:environment:dev`, the `dev` ref, and this repository's deployment workflow.
 
-The Action publishes an immutable multi-architecture image, joins the tailnet as an ephemeral tagged node, copies tracked deployment files over Tailscale SSH, and invokes `deploy/oci/deploy.sh`. That script starts Caddy early for certificate issuance, waits for PostgreSQL, applies Alembic migrations, replaces FastAPI only after migration success, waits for container health, and prints status/log diagnostics automatically on failure. The Action then checks the public health URL. SSH uses no private key; its host key is accepted into a runner-temporary known-hosts file.
+The Action publishes immutable multi-architecture images, joins the tailnet as an ephemeral tagged node, copies tracked deployment files over Tailscale SSH, and invokes `deploy/oci/deploy.sh`. It passes the public admin domain and OAuth callback explicitly, so existing server `.env` files do not need to duplicate those non-secret release settings. The deploy script starts Caddy early for certificate issuance, waits for PostgreSQL, applies Alembic migrations, replaces the applications only after migration success, waits for container health, and prints status/log diagnostics automatically on failure. The Action then checks the public health URL. SSH uses no private key; its host key is accepted into a runner-temporary known-hosts file.
 
 If GHCR is private, authenticate the VM once with a read-only `read:packages` token. Otherwise make the container package public.
 

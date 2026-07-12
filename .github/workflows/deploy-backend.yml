@@ -190,6 +190,8 @@ jobs:
           OCI_DEPLOY_PATH: ${{ vars.OCI_DEPLOY_PATH }}
           BACKEND_IMAGE_REF: ${{ needs.publish.outputs.backend_image_ref }}
           ADMIN_IMAGE_REF: ${{ needs.publish.outputs.admin_image_ref }}
+          ADMIN_DOMAIN: admin.booth-plus.ribe.moe
+          ADMIN_REDIRECT_URL: https://admin.booth-plus.ribe.moe/oauth/callback
         run: |
           set -euo pipefail
 
@@ -209,19 +211,27 @@ jobs:
 
           ssh "${ssh_options[@]}" \
             "$OCI_SSH_USER@$OCI_TAILSCALE_HOST" \
-              "bash -s -- '$BACKEND_IMAGE_REF' '$ADMIN_IMAGE_REF' '$OCI_DEPLOY_PATH'" <<'REMOTE'
+              "bash -s -- '$BACKEND_IMAGE_REF' '$ADMIN_IMAGE_REF' '$ADMIN_DOMAIN' '$ADMIN_REDIRECT_URL' '$OCI_DEPLOY_PATH'" <<'REMOTE'
           set -euo pipefail
 
           backend_image_ref="$1"
           admin_image_ref="$2"
-          deploy_path="$3"
+          admin_domain="$3"
+          admin_redirect_url="$4"
+          deploy_path="$5"
 
           [[ "$backend_image_ref" == ghcr.io/ribekim/booth-plus-backend@sha256:* ]]
           [[ "$admin_image_ref" == ghcr.io/ribekim/booth-plus-admin@sha256:* ]]
+          [[ "$admin_domain" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$admin_redirect_url" =~ ^https://[A-Za-z0-9.-]+/oauth/callback$ ]]
           [[ "$deploy_path" == /* ]]
 
           cd "$deploy_path"
-          bash deploy/oci/deploy.sh "$backend_image_ref" "$admin_image_ref"
+          bash deploy/oci/deploy.sh \
+            "$backend_image_ref" \
+            "$admin_image_ref" \
+            "$admin_domain" \
+            "$admin_redirect_url"
           REMOTE
 
       - name: Verify deployment health
