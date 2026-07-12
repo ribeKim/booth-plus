@@ -12,7 +12,23 @@ reviewBoard:
     accountSettings: アカウント設定
   noComments: まだコメントがありません。最初の体験を共有してみてください。
   placeholder: 使用した感想を正直に共有してください。
+  contentLabel: コメント内容
   rating: 評価
+  anonymous:
+    title: 匿名で作成中
+    id: 匿名ID
+    password: パスワード
+    help: パスワードはコメントの修正・削除に必要で、復元できません。
+    showPassword: 表示
+    hidePassword: 非表示
+    badge: 匿名
+  deleteDialog:
+    title: コメントを削除しますか？
+    description: 削除したコメントは復元できません。
+    anonymousDescription: 作成時のパスワードを入力すると、コメントが完全に削除されます。
+    passwordPlaceholder: 6文字以上
+    cancel: キャンセル
+    confirm: 削除する
   loginPrompt: ログインするとコメントできます。
   submit:
     new: コメント登録
@@ -43,6 +59,8 @@ messages:
   loginRequired: ログインが必要です。
   emptyContent: 内容を入力してください。
   usernameRequired: ユーザー名を入力してください。
+  anonymousCredentialsRequired: 2文字以上の匿名IDと6文字以上のパスワードを入力してください。
+  anonymousPasswordError: 匿名コメントのパスワードが一致しません。
 userPanel:
   title: ユーザー管理
   description: 現在ログイン中のユーザーのプロフィールと設定を管理します。

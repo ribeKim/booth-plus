@@ -12,7 +12,23 @@ reviewBoard:
     accountSettings: Account settings
   noComments: No comments yet. Share your first experience.
   placeholder: Share your honest experience using the product.
+  contentLabel: Comment
   rating: Rating
+  anonymous:
+    title: Writing anonymously
+    id: Anonymous ID
+    password: Password
+    help: The password is required to edit or delete this comment and cannot be recovered.
+    showPassword: Show
+    hidePassword: Hide
+    badge: Anonymous
+  deleteDialog:
+    title: Delete this comment?
+    description: Deleted comments cannot be recovered.
+    anonymousDescription: Enter the password used when posting to permanently delete this comment.
+    passwordPlaceholder: At least 6 characters
+    cancel: Cancel
+    confirm: Delete
   loginPrompt: Log in to write a comment.
   submit:
     new: Post comment
@@ -43,6 +59,8 @@ messages:
   loginRequired: Login is required.
   emptyContent: Please enter some text.
   usernameRequired: Please enter a username.
+  anonymousCredentialsRequired: Enter an anonymous ID of at least 2 characters and a password of at least 6 characters.
+  anonymousPasswordError: The anonymous comment password does not match.
 userPanel:
   title: User management
   description: Manage the profile and settings for the signed-in user.

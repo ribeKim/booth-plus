@@ -49,3 +49,34 @@ def new_refresh_token() -> str:
 
 def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def hash_anonymous_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(
+        password.encode(), salt=salt, n=16384, r=8, p=1, maxmem=64 * 1024 * 1024
+    )
+    return f"scrypt$16384$8$1${_encode(salt)}${_encode(digest)}"
+
+
+def verify_anonymous_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, raw_n, raw_r, raw_p, raw_salt, raw_digest = encoded.split("$", 5)
+        if algorithm != "scrypt":
+            return False
+        n, r, p = int(raw_n), int(raw_r), int(raw_p)
+        if (n, r, p) != (16384, 8, 1):
+            return False
+        expected = _decode(raw_digest)
+        actual = hashlib.scrypt(
+            password.encode(),
+            salt=_decode(raw_salt),
+            n=n,
+            r=r,
+            p=p,
+            maxmem=64 * 1024 * 1024,
+            dklen=len(expected),
+        )
+        return hmac.compare_digest(actual, expected)
+    except (TypeError, ValueError):
+        return False

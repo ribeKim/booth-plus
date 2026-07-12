@@ -12,7 +12,23 @@ reviewBoard:
     accountSettings: 계정 설정
   noComments: 아직 댓글이 없습니다. 첫 경험을 공유해 보세요.
   placeholder: 직접 사용한 경험을 솔직하게 공유해보세요.
+  contentLabel: 댓글 내용
   rating: 평점
+  anonymous:
+    title: 익명으로 작성 중
+    id: 익명 아이디
+    password: 비밀번호
+    help: 비밀번호는 댓글 수정과 삭제에 필요하며 복구할 수 없습니다.
+    showPassword: 보기
+    hidePassword: 숨김
+    badge: 익명
+  deleteDialog:
+    title: 댓글을 삭제할까요?
+    description: 삭제한 댓글은 복구할 수 없습니다.
+    anonymousDescription: 작성할 때 사용한 비밀번호를 입력하면 댓글이 영구 삭제됩니다.
+    passwordPlaceholder: 비밀번호 6자 이상
+    cancel: 취소
+    confirm: 삭제하기
   loginPrompt: 로그인하면 댓글을 쓸 수 있어요.
   submit:
     new: 댓글 등록
@@ -43,6 +59,8 @@ messages:
   loginRequired: 로그인이 필요합니다.
   emptyContent: 내용을 입력해주세요.
   usernameRequired: 사용자명을 입력해주세요.
+  anonymousCredentialsRequired: 익명 아이디 2자 이상과 비밀번호 6자 이상을 입력해주세요.
+  anonymousPasswordError: 익명 댓글 비밀번호가 일치하지 않습니다.
 userPanel:
   title: 사용자 관리
   description: 현재 로그인한 사용자의 프로필과 설정을 관리합니다.

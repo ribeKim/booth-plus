@@ -1,5 +1,6 @@
 import re
 import secrets
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Protocol, cast
 from urllib.parse import urlencode
@@ -11,7 +12,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from .auth import issue_access_token, new_refresh_token, token_hash, verify_access_token
+from .auth import (
+    hash_anonymous_password,
+    issue_access_token,
+    new_refresh_token,
+    token_hash,
+    verify_access_token,
+    verify_anonymous_password,
+)
 from .booth import BoothProduct, fetch_product
 from .config import Settings
 
@@ -27,6 +35,12 @@ class RefreshBody(BaseModel):
 class CommentBody(BaseModel):
     content: str = Field(min_length=1, max_length=5000)
     score: int = Field(ge=1, le=10)
+    anonymous_id: str | None = Field(default=None, alias="anonymousId", min_length=2, max_length=50)
+    password: str | None = Field(default=None, min_length=6, max_length=128)
+
+
+class DeleteCommentBody(BaseModel):
+    password: str | None = Field(default=None, min_length=6, max_length=128)
 
 
 def _row(row: Any) -> dict[str, Any]:
@@ -43,19 +57,38 @@ def _comment(row: Any) -> dict[str, Any]:
         "upvotes": item.get("upvotes", 0),
         "downvotes": item.get("downvotes", 0),
         "updatedAt": item["updated_at"].isoformat(),
+        "anonymous": item["anonymous"],
+        "canManage": item["can_manage"],
         "user": {"id": item["user_id"], "username": item["username"]},
     }
 
 
 COMMENT_SELECT = """
 SELECT c.id, c.content, c.score, c.language, c.updated_at,
+       c.user_id IS NULL AS anonymous,
+       COALESCE(c.anonymous_password_hash LIKE 'scrypt$%', false) AS can_manage,
        COALESCE(c.user_id, 'anonymous:' || c.id) AS user_id,
-       COALESCE(u.username, '익명') AS username,
+       COALESCE(u.username, c.anonymous_id, '익명') AS username,
        COUNT(v.*) FILTER (WHERE v.value = 1)::int AS upvotes,
        COUNT(v.*) FILTER (WHERE v.value = -1)::int AS downvotes
 FROM comments c LEFT JOIN users u ON u.id = c.user_id
 LEFT JOIN comment_votes v ON v.comment_id = c.id
 """
+
+
+def _authorize_comment(
+    row: Mapping[str, Any], user_id: str | None, password: str | None
+) -> None:
+    owner_id = row["user_id"]
+    if owner_id is not None:
+        if user_id != owner_id:
+            raise HTTPException(status_code=404, detail="comment not found")
+        return
+    encoded = row["anonymous_password_hash"]
+    if not isinstance(encoded, str) or not password or not verify_anonymous_password(
+        password, encoded
+    ):
+        raise HTTPException(status_code=403, detail="invalid anonymous comment password")
 
 
 def build_api_router(settings: Settings, database: object) -> APIRouter:
@@ -79,6 +112,20 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
         if user_id is None:
             raise HTTPException(status_code=401, detail="authentication required")
         return user_id
+
+    async def locked_comment(connection: Any, comment_id: str) -> Any:
+        row = (
+            await connection.execute(
+                text(
+                    "SELECT user_id, anonymous_password_hash FROM comments "
+                    "WHERE id=:id AND NOT disabled FOR UPDATE"
+                ),
+                {"id": comment_id},
+            )
+        ).mappings().one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="comment not found")
+        return row
 
     async def tokens(user_id: str, connection: Any) -> dict[str, str]:
         refresh = new_refresh_token()
@@ -395,6 +442,16 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
         product_id: str, body: CommentBody, user_id: Annotated[str | None, Depends(optional_user)]
     ) -> dict[str, str]:
         comment_id = secrets.token_urlsafe(18)
+        anonymous_id: str | None = None
+        anonymous_password_hash: str | None = None
+        if user_id is None:
+            anonymous_id = (body.anonymous_id or "").strip()
+            if not 2 <= len(anonymous_id) <= 50 or not body.password:
+                raise HTTPException(
+                    status_code=400,
+                    detail="anonymousId and password are required for anonymous comments",
+                )
+            anonymous_password_hash = hash_anonymous_password(body.password)
         async with engine().connect() as connection:
             product_exists = await connection.scalar(
                 text("SELECT 1 FROM products WHERE id=:id"), {"id": product_id}
@@ -412,13 +469,17 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
         async with engine().begin() as connection:
             await connection.execute(
                 text(
-                    """INSERT INTO comments (id, product_id, user_id, content, score)
-                    VALUES (:id, :product, :user, :content, :score)"""
+                    """INSERT INTO comments
+                    (id, product_id, user_id, anonymous_id, anonymous_password_hash, content, score)
+                    VALUES
+                    (:id, :product, :user, :anonymous_id, :password_hash, :content, :score)"""
                 ),
                 {
                     "id": comment_id,
                     "product": product_id,
                     "user": user_id,
+                    "anonymous_id": anonymous_id,
+                    "password_hash": anonymous_password_hash,
                     "content": body.content.strip(),
                     "score": body.score,
                 },
@@ -427,19 +488,28 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
 
     @router.put("/comment/{comment_id}")
     async def update_comment(
-        comment_id: str, body: CommentBody, user_id: Annotated[str, Depends(current_user)]
+        comment_id: str,
+        body: CommentBody,
+        user_id: Annotated[str | None, Depends(optional_user)],
     ) -> dict[str, bool]:
         async with engine().begin() as connection:
+            row = await locked_comment(connection, comment_id)
+            _authorize_comment(row, user_id, body.password)
+            anonymous_id = body.anonymous_id.strip() if body.anonymous_id else None
+            if anonymous_id is not None and not 2 <= len(anonymous_id) <= 50:
+                raise HTTPException(status_code=400, detail="invalid anonymousId")
             result = await connection.execute(
                 text(
-                    """UPDATE comments SET content=:content, score=:score
-                    WHERE id=:comment AND user_id=:user AND NOT disabled"""
+                    """UPDATE comments SET content=:content, score=:score,
+                    anonymous_id=CASE WHEN user_id IS NULL AND :anonymous_id IS NOT NULL
+                      THEN :anonymous_id ELSE anonymous_id END
+                    WHERE id=:comment AND NOT disabled"""
                 ),
                 {
                     "content": body.content.strip(),
                     "score": body.score,
                     "comment": comment_id,
-                    "user": user_id,
+                    "anonymous_id": anonymous_id,
                 },
             )
         if result.rowcount != 1:
@@ -448,12 +518,16 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
 
     @router.delete("/comment/{comment_id}")
     async def delete_comment(
-        comment_id: str, user_id: Annotated[str, Depends(current_user)]
+        comment_id: str,
+        user_id: Annotated[str | None, Depends(optional_user)],
+        body: Annotated[DeleteCommentBody | None, Body()] = None,
     ) -> dict[str, bool]:
         async with engine().begin() as connection:
+            row = await locked_comment(connection, comment_id)
+            _authorize_comment(row, user_id, body.password if body else None)
             result = await connection.execute(
-                text("DELETE FROM comments WHERE id=:comment AND user_id=:user"),
-                {"comment": comment_id, "user": user_id},
+                text("DELETE FROM comments WHERE id=:comment"),
+                {"comment": comment_id},
             )
         if result.rowcount != 1:
             raise HTTPException(status_code=404, detail="comment not found")
@@ -461,11 +535,11 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
 
     async def vote(comment_id: str, value: int, user_id: str) -> dict[str, bool]:
         async with engine().begin() as connection:
-            owner = await connection.scalar(
-                text("SELECT user_id FROM comments WHERE id=:id AND NOT disabled"),
+            exists = await connection.scalar(
+                text("SELECT 1 FROM comments WHERE id=:id AND NOT disabled"),
                 {"id": comment_id},
             )
-            if owner is None:
+            if not exists:
                 raise HTTPException(status_code=404, detail="comment not found")
             parameters = {"comment": comment_id, "user": user_id, "value": value}
             current = await connection.scalar(

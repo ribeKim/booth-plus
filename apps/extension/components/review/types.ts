@@ -6,6 +6,8 @@ export type CommentItem = {
   upvotes?: number;
   downvotes?: number;
   updatedAt: string;
+  anonymous: boolean;
+  canManage: boolean;
   user: {
     id: string;
     username: string;
@@ -32,6 +34,8 @@ export type AuthToken = {
 export type CommentBody = {
   content: string;
   score: number;
+  anonymousId?: string;
+  password?: string;
 };
 
 export type CommentsPage = {

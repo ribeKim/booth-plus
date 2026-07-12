@@ -172,7 +172,7 @@ def build_admin_router(settings: Settings, database: object) -> APIRouter:
         del admin_user_id
         pattern = f"%{query.strip()}%"
         condition = """(:query = '' OR c.content ILIKE :pattern OR c.product_id ILIKE :pattern
-            OR COALESCE(u.username, '익명') ILIKE :pattern)"""
+            OR COALESCE(u.username, c.anonymous_id, '익명') ILIKE :pattern)"""
         parameters = {"query": query.strip(), "pattern": pattern}
         async with engine().connect() as connection:
             count = await connection.scalar(
@@ -188,7 +188,7 @@ def build_admin_router(settings: Settings, database: object) -> APIRouter:
                         f"""SELECT c.id, c.product_id, c.content, c.score, c.language,
                             c.disabled, c.created_at, c.updated_at,
                             COALESCE(c.user_id, 'anonymous:' || c.id) AS user_id,
-                            COALESCE(u.username, '익명') AS username,
+                            COALESCE(u.username, c.anonymous_id, '익명') AS username,
                             COUNT(v.*) FILTER (WHERE v.value=1)::int AS upvotes,
                             COUNT(v.*) FILTER (WHERE v.value=-1)::int AS downvotes
                         FROM comments c LEFT JOIN users u ON u.id=c.user_id
@@ -283,12 +283,14 @@ def build_admin_router(settings: Settings, database: object) -> APIRouter:
                         await ensure_legacy_user(connection, user_id, username)
                     await connection.execute(
                         text("""INSERT INTO comments
-                            (id, product_id, user_id, content, score, language,
-                             disabled, created_at, updated_at)
-                            VALUES (:id, :product, :user, :content, :score, :language,
-                                    :disabled, :created, :updated)
+                            (id, product_id, user_id, anonymous_id, anonymous_password_hash,
+                             content, score, language, disabled, created_at, updated_at)
+                            VALUES (:id, :product, :user, :anonymous_id, :password_hash,
+                                    :content, :score, :language, :disabled, :created, :updated)
                             ON CONFLICT (id) DO UPDATE SET product_id=EXCLUDED.product_id,
-                              user_id=EXCLUDED.user_id, content=EXCLUDED.content,
+                              user_id=EXCLUDED.user_id, anonymous_id=EXCLUDED.anonymous_id,
+                              anonymous_password_hash=EXCLUDED.anonymous_password_hash,
+                              content=EXCLUDED.content,
                               score=EXCLUDED.score, language=EXCLUDED.language,
                               disabled=EXCLUDED.disabled, created_at=EXCLUDED.created_at,
                               updated_at=EXCLUDED.updated_at"""),
@@ -296,6 +298,8 @@ def build_admin_router(settings: Settings, database: object) -> APIRouter:
                             "id": comment_id,
                             "product": product_id,
                             "user": user_id,
+                            "anonymous_id": None if user_id else username,
+                            "password_hash": None if user_id else f"disabled${comment_id}",
                             "content": content,
                             "score": score,
                             "language": _scalar(record.get("language")) or None,

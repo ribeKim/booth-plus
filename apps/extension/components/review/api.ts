@@ -104,8 +104,11 @@ export const updateComment = (commentId: string, body: CommentBody) =>
     body: JSON.stringify(body),
   });
 
-export const deleteComment = (commentId: string) =>
-  apiFetch<{ deleted: boolean }>(`/comment/${commentId}`, { method: "DELETE" });
+export const deleteComment = (commentId: string, password?: string) =>
+  apiFetch<{ deleted: boolean }>(`/comment/${commentId}`, {
+    method: "DELETE",
+    body: password ? JSON.stringify({ password }) : undefined,
+  });
 
 export const voteComment = (commentId: string, direction: "upvote" | "downvote") =>
   apiFetch<{ updated: boolean }>(`/comment/${commentId}/${direction}`, { method: "POST" });

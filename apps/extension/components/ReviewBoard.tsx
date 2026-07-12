@@ -9,6 +9,7 @@ import {
 } from "@/components/review/api";
 import { CommentForm } from "@/components/review/components/CommentForm";
 import { CommentList } from "@/components/review/components/CommentList";
+import { DeleteCommentDialog } from "@/components/review/components/DeleteCommentDialog";
 import { ReviewHeader } from "@/components/review/components/ReviewHeader";
 import { getCurrentItemId } from "@/components/review/item";
 import { sendMessage } from "@/components/review/messaging";
@@ -24,6 +25,7 @@ import { browser } from "wxt/browser";
 
 const DEFAULT_SCORE = 8;
 const COMMENTS_PAGE_SIZE = 10;
+const emptyForm = () => ({ content: "", score: DEFAULT_SCORE, anonymousId: "", password: "" });
 
 type SubmitVariables = {
   itemId: string;
@@ -37,8 +39,11 @@ export function ReviewBoard() {
   const userQuery = useUserProfileQuery();
   const commentsQuery = useCommentsQuery(itemId, COMMENTS_PAGE_SIZE);
   const loadMoreTriggerRef = useRef<HTMLDivElement | null>(null);
-  const [form, setForm] = useState({ content: "", score: DEFAULT_SCORE });
+  const [form, setForm] = useState(emptyForm);
   const [editingComment, setEditingComment] = useState<CommentItem | null>(null);
+  const [deletingComment, setDeletingComment] = useState<CommentItem | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   const comments = commentsQuery.data?.pages.flatMap((page) => page.comments) ?? [];
   const commentCount = commentsQuery.data?.pages[0]?.count ?? 0;
@@ -75,28 +80,40 @@ export function ReviewBoard() {
     },
     onSuccess: async () => {
       setEditingComment(null);
-      setForm({ content: "", score: DEFAULT_SCORE });
+      setForm(emptyForm());
       await invalidateComments();
     },
     onError: (error: Error) => {
       showErrorToast(
-        error instanceof ApiError && error.status === 400
-          ? i18n.t("messages.checkContent")
-          : i18n.t("messages.reviewSaveError"),
+        error instanceof ApiError && error.status === 403
+          ? i18n.t("messages.anonymousPasswordError")
+          : error instanceof ApiError && error.status === 400
+            ? i18n.t("messages.checkContent")
+            : i18n.t("messages.reviewSaveError"),
       );
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteComment,
-    onSuccess: async (_, commentId) => {
+    mutationFn: ({ commentId, password }: { commentId: string; password?: string }) =>
+      deleteComment(commentId, password),
+    onSuccess: async (_, { commentId }) => {
       if (editingComment?.id === commentId) {
         setEditingComment(null);
-        setForm({ content: "", score: DEFAULT_SCORE });
+        setForm(emptyForm());
       }
+      setDeletingComment(null);
+      setDeletePassword("");
+      setDeleteError("");
       await invalidateComments();
     },
-    onError: () => showErrorToast(i18n.t("messages.reviewDeleteError")),
+    onError: (error: Error) => {
+      setDeleteError(
+        error instanceof ApiError && error.status === 403
+          ? i18n.t("messages.anonymousPasswordError")
+          : i18n.t("messages.reviewDeleteError"),
+      );
+    },
   });
 
   const voteMutation = useMutation({
@@ -133,7 +150,7 @@ export function ReviewBoard() {
     try {
       await authTokenStorage.setValue(null);
       setEditingComment(null);
-      setForm({ content: "", score: DEFAULT_SCORE });
+      setForm(emptyForm());
       await refreshAuthData();
     } catch {
       showErrorToast(i18n.t("messages.logoutError"));
@@ -143,14 +160,28 @@ export function ReviewBoard() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const content = form.content.trim();
+    const usesAnonymousCredentials = !isAuthenticated || Boolean(editingComment?.canManage);
     if (!itemId || !content) {
       if (!content) showErrorToast(i18n.t("messages.emptyContent"));
+      return;
+    }
+    if (
+      usesAnonymousCredentials &&
+      (form.anonymousId.trim().length < 2 || form.password.length < 6)
+    ) {
+      showErrorToast(i18n.t("messages.anonymousCredentialsRequired"));
       return;
     }
     submitMutation.mutate({
       itemId,
       commentId: editingComment?.id,
-      body: { content, score: form.score },
+      body: {
+        content,
+        score: form.score,
+        ...(usesAnonymousCredentials
+          ? { anonymousId: form.anonymousId.trim(), password: form.password }
+          : {}),
+      },
     });
   };
 
@@ -164,12 +195,35 @@ export function ReviewBoard() {
 
   const handleEdit = (comment: CommentItem) => {
     setEditingComment(comment);
-    setForm({ content: comment.content, score: comment.score });
+    setForm({
+      content: comment.content,
+      score: comment.score,
+      anonymousId: comment.canManage ? comment.user.username : "",
+      password: "",
+    });
+  };
+
+  const handleDelete = (comment: CommentItem) => {
+    setDeletingComment(comment);
+    setDeletePassword("");
+    setDeleteError("");
+  };
+
+  const confirmDelete = () => {
+    if (!deletingComment) return;
+    if (deletingComment.canManage && deletePassword.length < 6) {
+      setDeleteError(i18n.t("messages.anonymousCredentialsRequired"));
+      return;
+    }
+    deleteMutation.mutate({
+      commentId: deletingComment.id,
+      password: deletingComment.canManage ? deletePassword : undefined,
+    });
   };
 
   const cancelEdit = () => {
     setEditingComment(null);
-    setForm({ content: "", score: DEFAULT_SCORE });
+    setForm(emptyForm());
   };
 
   if (!itemId) return null;
@@ -196,19 +250,42 @@ export function ReviewBoard() {
           loadMoreRef={loadMoreTriggerRef}
           onVote={handleVote}
           onEdit={handleEdit}
-          onDelete={(commentId) => deleteMutation.mutate(commentId)}
+          onDelete={handleDelete}
         />
         <CommentForm
           content={form.content}
           score={form.score}
           isEditing={Boolean(editingComment)}
           isSaving={submitMutation.isPending}
+          showAnonymousCredentials={!isAuthenticated || Boolean(editingComment?.canManage)}
+          anonymousId={form.anonymousId}
+          password={form.password}
           onContentChange={(content) => setForm((current) => ({ ...current, content }))}
           onScoreChange={(score) => !isFormBusy && setForm((current) => ({ ...current, score }))}
+          onAnonymousIdChange={(anonymousId) =>
+            setForm((current) => ({ ...current, anonymousId }))
+          }
+          onPasswordChange={(password) => setForm((current) => ({ ...current, password }))}
           onSubmit={handleSubmit}
           onCancelEdit={cancelEdit}
         />
       </div>
+      <DeleteCommentDialog
+        comment={deletingComment}
+        password={deletePassword}
+        error={deleteError}
+        isDeleting={deleteMutation.isPending}
+        onPasswordChange={(password) => {
+          setDeletePassword(password);
+          setDeleteError("");
+        }}
+        onCancel={() => {
+          setDeletingComment(null);
+          setDeletePassword("");
+          setDeleteError("");
+        }}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

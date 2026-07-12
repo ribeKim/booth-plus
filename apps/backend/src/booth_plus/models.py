@@ -132,6 +132,8 @@ comments = Table(
     Column("id", Text, primary_key=True),
     Column("product_id", Text, ForeignKey("products.id", ondelete="CASCADE"), nullable=False),
     Column("user_id", Text, ForeignKey("users.id", ondelete="CASCADE")),
+    Column("anonymous_id", Text),
+    Column("anonymous_password_hash", Text),
     Column("content", Text, nullable=False),
     Column("score", SmallInteger, nullable=False),
     Column("language", Text),
@@ -140,6 +142,11 @@ comments = Table(
     CheckConstraint("char_length(btrim(content)) > 0"),
     CheckConstraint("score BETWEEN 1 AND 10"),
     CheckConstraint("language IS NULL OR char_length(btrim(language)) > 0"),
+    CheckConstraint(
+        "(user_id IS NOT NULL AND anonymous_id IS NULL AND anonymous_password_hash IS NULL) OR "
+        "(user_id IS NULL AND anonymous_id IS NOT NULL AND anonymous_password_hash IS NOT NULL)"
+    ),
+    CheckConstraint("anonymous_id IS NULL OR char_length(btrim(anonymous_id)) BETWEEN 2 AND 50"),
 )
 Index(
     "comments_product_new_idx",

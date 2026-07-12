@@ -1,4 +1,5 @@
 import { i18n } from "#i18n";
+import { IconEdit, IconTrash } from "@tabler/icons-react";
 import { API_BASE } from "@/components/review/api";
 import type { CommentItem } from "@/components/review/types";
 import { formatDateTime } from "@/utils/review-utils";
@@ -17,11 +18,11 @@ type Props = {
   loadMoreRef: RefObject<HTMLDivElement | null>;
   onVote: (commentId: string, direction: "upvote" | "downvote") => void;
   onEdit: (comment: CommentItem) => void;
-  onDelete: (commentId: string) => void;
+  onDelete: (comment: CommentItem) => void;
 };
 
 const avatarUrl = (comment: CommentItem) =>
-  comment.user.id.startsWith("anonymous:")
+  comment.anonymous
     ? browser.runtime.getURL("/no_profile.png")
     : `${API_BASE}/user/avatar/${comment.user.id}`;
 
@@ -65,6 +66,7 @@ export function CommentList({
       {!isLoading &&
         comments.map((comment) => {
           const mine = currentUserId === comment.user.id;
+          const manageable = mine || comment.canManage;
           return (
             <article
               key={comment.id}
@@ -85,6 +87,11 @@ export function CommentList({
                     <div>
                       <p className="text-sm font-semibold text-slate-900">
                         {comment.user.username}
+                        {comment.anonymous && (
+                          <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500">
+                            {i18n.t("reviewBoard.anonymous.badge")}
+                          </span>
+                        )}
                       </p>
                       <p className="text-[11px] text-slate-500">
                         {formatDateTime(comment.updatedAt)}
@@ -116,22 +123,28 @@ export function CommentList({
                   <span>👎</span>
                   <span>{comment.downvotes ?? 0}</span>
                 </button>
-                {mine && (
+                {manageable && (
                   <>
                     <button
                       type="button"
-                      className="ml-auto text-slate-500 hover:text-slate-900"
+                      className="ml-auto rounded-full border border-slate-200 px-2.5 py-1 text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
                       onClick={() => onEdit(comment)}
                     >
-                      {i18n.t("reviewBoard.submit.edit")}
+                      <span className="inline-flex items-center gap-1">
+                        <IconEdit size={13} />
+                        {i18n.t("reviewBoard.submit.edit")}
+                      </span>
                     </button>
                     <button
                       type="button"
-                      className="text-red-500 hover:text-red-700 disabled:opacity-60"
-                      onClick={() => onDelete(comment.id)}
+                      className="rounded-full border border-red-100 bg-red-50 px-2.5 py-1 text-red-600 transition hover:border-red-200 hover:bg-red-100 disabled:opacity-60"
+                      onClick={() => onDelete(comment)}
                       disabled={isDeleting}
                     >
-                      {i18n.t("reviewBoard.submit.delete")}
+                      <span className="inline-flex items-center gap-1">
+                        <IconTrash size={13} />
+                        {i18n.t("reviewBoard.submit.delete")}
+                      </span>
                     </button>
                   </>
                 )}
