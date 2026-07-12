@@ -83,7 +83,7 @@ APP_HEALTH_URL=https://booth-plus.ribe.moe/api/health/storage
 
 The federated identity needs only the `auth_keys` scope and `tag:github-actions-dev`. Constrain its subject to `repo:ribeKim/booth-plus:environment:dev`, the `dev` ref, and this repository's deployment workflow.
 
-The Action publishes an immutable multi-architecture image, joins the tailnet as an ephemeral tagged node, copies tracked deployment files over Tailscale SSH, starts PostgreSQL, applies Alembic migrations, replaces FastAPI/Caddy only after migration success, and checks the public health URL. SSH uses no private key; its host key is accepted into a runner-temporary known-hosts file.
+The Action publishes an immutable multi-architecture image, joins the tailnet as an ephemeral tagged node, copies tracked deployment files over Tailscale SSH, and invokes `deploy/oci/deploy.sh`. That script starts Caddy early for certificate issuance, waits for PostgreSQL, applies Alembic migrations, replaces FastAPI only after migration success, waits for container health, and prints status/log diagnostics automatically on failure. The Action then checks the public health URL. SSH uses no private key; its host key is accepted into a runner-temporary known-hosts file.
 
 If GHCR is private, authenticate the VM once with a read-only `read:packages` token. Otherwise make the container package public.
 
@@ -100,6 +100,8 @@ bun run deploy:backend
 ```
 
 `deploy:migrate` starts PostgreSQL and waits for its health check before running `alembic upgrade head`. If migration fails, the script exits and the new backend is not started. Runtime readiness checks PostgreSQL writability, the Alembic head revision, and all required tables.
+
+Normal releases do not require running these commands manually. A push to `dev` or a manual **Deploy backend** workflow run on `dev` executes the complete deployment script. Manual commands are retained only for recovery and diagnosis.
 
 For a manual on-VM build, replace `deploy:pull` with `bun run deploy:build`.
 

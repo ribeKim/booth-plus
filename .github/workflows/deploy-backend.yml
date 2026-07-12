@@ -200,15 +200,7 @@ jobs:
           [[ "$deploy_path" == /* ]]
 
           cd "$deploy_path"
-          export BACKEND_IMAGE="$image_ref"
-          bun run deploy:pull
-          bun run deploy:migrate
-          bun run deploy:backend
-
-          docker compose \
-            --env-file deploy/oci/.env \
-            -f deploy/oci/compose.yaml \
-            ps
+          bash deploy/oci/deploy.sh "$image_ref"
           REMOTE
 
       - name: Verify deployment health
@@ -220,4 +212,6 @@ jobs:
             --retry 12 \
             --retry-delay 5 \
             --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 20 \
             "$APP_HEALTH_URL"
