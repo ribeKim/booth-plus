@@ -7,6 +7,7 @@
     "dev": "bun x vite --configLoader runner",
     "build": "bun x tsc -b && bun x vite build --configLoader runner",
     "compile": "bun x tsc --noEmit",
+    "test": "bun test src/csv.test.ts",
     "preview": "bun x vite preview --configLoader runner"
   },
   "dependencies": {

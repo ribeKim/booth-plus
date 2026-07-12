@@ -41,7 +41,7 @@
     "build:extension:dev": "bun run --filter @booth-plus/extension build:dev",
     "build:extension:prod": "bun run --filter @booth-plus/extension build:prod",
     "compile": "bun run --filter @booth-plus/admin compile && bun run --filter @booth-plus/extension compile",
-    "test": "bun run --if-present --filter @booth-plus/extension test && bun run test:backend",
+    "test": "bun run --filter @booth-plus/admin test && bun run --if-present --filter @booth-plus/extension test && bun run test:backend",
     "check": "bun run compile && bun run test && bun run lint:backend",
     "zip": "bun run --filter @booth-plus/extension zip",
     "zip:firefox": "bun run --filter @booth-plus/extension zip:firefox"

@@ -40,6 +40,12 @@ const performFetch = async <T>(url: string, init: RequestInit, attempt = 0): Pro
     if (refreshed) {
       return performFetch(url, init, attempt + 1);
     }
+
+    // An expired/revoked token must not prevent anonymous public actions.
+    // Clear the stale token and retry once without an Authorization header;
+    // protected endpoints will still return 401 on the second attempt.
+    await authTokenStorage.setValue(null);
+    return performFetch(url, init, attempt + 1);
   }
 
   const message = await readResponseText(response);

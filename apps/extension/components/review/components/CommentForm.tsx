@@ -117,7 +117,7 @@ export function CommentForm({
           required
           onChange={(event) => onContentChange(event.target.value)}
           placeholder={i18n.t("reviewBoard.placeholder")}
-          disabled={isSaving || !isValid}
+          disabled={isSaving}
         />
       </div>
       <div className="flex flex-col gap-2 text-xs font-semibold text-slate-500">
@@ -128,7 +128,7 @@ export function CommentForm({
         <button
           className="flex-1 rounded-2xl bg-gradient-to-r from-[#fc4d50] to-[#ff826a] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
           type="submit"
-          disabled={isSaving}
+          disabled={isSaving || !isValid}
         >
           {isSaving
             ? i18n.t("reviewBoard.submit.saving")

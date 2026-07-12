@@ -61,6 +61,11 @@ Both backends must set `ADMIN_REDIRECT_URL=https://admin.booth-plus.ribe.moe/oau
 The development deployment may use a separate `ADMIN_DOMAIN` such as
 `admin-dev.booth-plus.ribe.moe` so it does not request certificates for the production hostname.
 
-The importer accepts JSON arrays, `{ "comments": [...] }`, or JSONL from the admin web UI. It maps
-legacy `_id`, `productId`, `userId`, timestamps, disabled state, and vote-user arrays. Stored
+The admin web UI accepts UTF-8 CSV files and sends parsed records to the importer in batches. CSV
+headers must use this exact order: `_id`, `__v`, `content`, `createdAt`, `disabled`,
+`downvoteUsers`, `downvotes`, `language`, `productId`, `score`, `updatedAt`, `upvoteUsers`,
+`upvotes`, `user`, `userId`. JSON
+arrays in `user`, `upvoteUsers`, and `downvoteUsers` cells are supported, as are pipe- or
+semicolon-separated vote-user IDs. The importer maps legacy `_id`, `productId`, `userId`,
+timestamps, disabled state, and vote-user arrays. Stored
 `upvotes` and `downvotes` counts are ignored because current counts are derived from vote rows.

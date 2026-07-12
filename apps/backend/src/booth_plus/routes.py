@@ -105,8 +105,14 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             return None
         scheme, _, token = authorization.partition(" ")
         if scheme.lower() != "bearer" or not token:
-            raise HTTPException(status_code=401, detail="invalid authorization header")
-        return verify_access_token(token, settings.auth_secret)
+            return None
+        try:
+            return verify_access_token(token, settings.auth_secret)
+        except HTTPException:
+            # Public comment reads/writes must remain usable when a browser or
+            # extension sends an expired token left over from an old session.
+            # Protected endpoints still reject the missing user via current_user.
+            return None
 
     async def current_user(user_id: Annotated[str | None, Depends(optional_user)]) -> str:
         if user_id is None:

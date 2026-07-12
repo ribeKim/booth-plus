@@ -14,6 +14,7 @@ import {
   type Environment,
   type UserProfile,
 } from "./api";
+import { COMMENT_CSV_HEADERS, parseCommentsCsv } from "./csv";
 
 const PAGE_SIZE = 50;
 
@@ -37,16 +38,10 @@ const EnvironmentSelect = ({
 );
 
 const parseImportFile = async (file: File): Promise<Record<string, unknown>[]> => {
-  const text = await file.text();
-  if (file.name.toLowerCase().endsWith(".jsonl")) {
-    return text.split(/\r?\n/).filter((line) => line.trim()).map((line) => JSON.parse(line));
+  if (!file.name.toLowerCase().endsWith(".csv")) {
+    throw new Error("CSV 파일만 업로드할 수 있습니다.");
   }
-  const value = JSON.parse(text) as unknown;
-  if (Array.isArray(value)) return value as Record<string, unknown>[];
-  if (value && typeof value === "object" && Array.isArray((value as { comments?: unknown }).comments)) {
-    return (value as { comments: Record<string, unknown>[] }).comments;
-  }
-  throw new Error("JSON 배열, comments 배열 또는 JSONL 파일이 필요합니다.");
+  return parseCommentsCsv(await file.text());
 };
 
 export default function App() {
@@ -173,8 +168,9 @@ export default function App() {
       {message && <pre className="message">{message}</pre>}
       <section className="panel">
         <h2>Legacy 댓글 Import</h2>
-        <p>JSON 배열, comments 배열 또는 JSONL 파일을 최대 500개씩 전송합니다.</p>
-        <input type="file" accept=".json,.jsonl,application/json" disabled={busy} onChange={(event) => {
+        <p>CSV 파일을 읽어 최대 500개씩 전송합니다.</p>
+        <p className="field-order">필드 순서: {COMMENT_CSV_HEADERS.join(", ")}</p>
+        <input type="file" accept=".csv,text/csv" disabled={busy} onChange={(event) => {
           const file = event.target.files?.[0];
           if (!file) return;
           setBusy(true);
