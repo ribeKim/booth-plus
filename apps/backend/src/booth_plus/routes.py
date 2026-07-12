@@ -387,7 +387,7 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
                 )
             ).first()
         if row is None:
-            raise HTTPException(status_code=404, detail="comment not found")
+            return {"comment": None}
         return {"comment": _row(row)}
 
     @router.post("/comment/{product_id}")
