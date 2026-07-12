@@ -1,0 +1,95 @@
+{
+  "tagOwners": {
+    "tag:github-actions-dev":  ["autogroup:admin"],
+    "tag:github-actions-prod": ["autogroup:admin"],
+    "tag:booth-plus-dev":      ["autogroup:admin"],
+    "tag:booth-plus-prod":     ["autogroup:admin"],
+  },
+
+  // Tailscale is deny-by-default. CI reaches only SSH on its matching VM.
+  "grants": [
+    {
+      "src": ["tag:github-actions-dev"],
+      "dst": ["tag:booth-plus-dev"],
+      "ip": ["tcp:22"],
+    },
+    {
+      "src": ["tag:github-actions-prod"],
+      "dst": ["tag:booth-plus-prod"],
+      "ip": ["tcp:22"],
+    },
+    {
+      "src": ["autogroup:admin"],
+      "dst": ["tag:booth-plus-dev", "tag:booth-plus-prod"],
+      "ip": ["tcp:22"],
+    },
+  ],
+
+  // CI cannot complete interactive check mode; humans must re-authenticate.
+  "ssh": [
+    {
+      "action": "accept",
+      "src": ["tag:github-actions-dev"],
+      "dst": ["tag:booth-plus-dev"],
+      "users": ["deploy"],
+    },
+    {
+      "action": "accept",
+      "src": ["tag:github-actions-prod"],
+      "dst": ["tag:booth-plus-prod"],
+      "users": ["deploy"],
+    },
+    {
+      "action": "check",
+      "src": ["autogroup:admin"],
+      "dst": ["tag:booth-plus-dev", "tag:booth-plus-prod"],
+      "users": ["deploy"],
+    },
+  ],
+
+  "tests": [
+    {
+      "src": "tag:github-actions-dev",
+      "accept": ["tag:booth-plus-dev:22"],
+      "deny": [
+        "tag:booth-plus-dev:80",
+        "tag:booth-plus-dev:443",
+        "tag:booth-plus-prod:22",
+      ],
+    },
+    {
+      "src": "tag:github-actions-prod",
+      "accept": ["tag:booth-plus-prod:22"],
+      "deny": [
+        "tag:booth-plus-prod:80",
+        "tag:booth-plus-prod:443",
+        "tag:booth-plus-dev:22",
+      ],
+    },
+  ],
+
+  "sshTests": [
+    {
+      "src": "tag:github-actions-dev",
+      "dst": ["tag:booth-plus-dev"],
+      "accept": ["deploy"],
+      "deny": ["root", "ubuntu", "opc"],
+    },
+    {
+      "src": "tag:github-actions-prod",
+      "dst": ["tag:booth-plus-prod"],
+      "accept": ["deploy"],
+      "deny": ["root", "ubuntu", "opc"],
+    },
+    {
+      "src": "tag:github-actions-dev",
+      "dst": ["tag:booth-plus-prod"],
+      "deny": ["deploy", "root"],
+    },
+    {
+      "src": "tag:github-actions-prod",
+      "dst": ["tag:booth-plus-dev"],
+      "deny": ["deploy", "root"],
+    },
+  ],
+}

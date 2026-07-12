@@ -1,0 +1,72 @@
+name: booth-plus-local
+
+x-backend-image: &backend-image
+  image: booth-plus-backend:local
+  build:
+    context: .
+    dockerfile: apps/backend/Dockerfile
+
+x-backend-environment: &backend-environment
+  HOST: 0.0.0.0
+  PORT: "3000"
+  DATABASE_URL: postgresql://booth_plus:booth_plus_dev@postgres:5432/booth_plus
+  DATABASE_SSL_MODE: disable
+  CORS_ORIGINS: http://localhost:3000,http://localhost:5173,https://booth.pm,https://*.booth.pm,chrome-extension://hafbafjoecfjdlhjilpakabocglkaegj
+  AUTH_SECRET: local-development-secret-change-before-deploy
+  DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+  DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+  ADMIN_REDIRECT_URL: http://localhost:5173/oauth/callback
+
+services:
+  postgres:
+    image: postgres:17.10-alpine3.24
+    environment:
+      POSTGRES_DB: booth_plus
+      POSTGRES_USER: booth_plus
+      # This credential is only for the disposable local development database.
+      POSTGRES_PASSWORD: booth_plus_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booth_plus -d booth_plus"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend-image
+    environment: *backend-environment
+    command: ["python", "scripts/migrate.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    <<: *backend-image
+    environment: *backend-environment
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/api/health/storage')"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 35s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

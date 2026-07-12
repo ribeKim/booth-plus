@@ -1,0 +1,44 @@
+{
+  "name": "@booth-plus/extension",
+  "description": "BoothPlus browser extension",
+  "private": true,
+  "version": "3.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run dev:local",
+    "dev:local": "WXT_API_ORIGIN=http://localhost:3000 bun x wxt --mode localdev",
+    "dev:dev": "WXT_API_ORIGIN=https://dev.booth-plus.ribe.moe bun x wxt --mode dev",
+    "dev:prod": "WXT_API_ORIGIN=https://booth-plus.ribe.moe bun x wxt --mode prod",
+    "dev:firefox": "WXT_API_ORIGIN=http://localhost:3000 bun x wxt -b firefox --mode localdev",
+    "build": "bun run build:prod",
+    "build:local": "WXT_API_ORIGIN=http://localhost:3000 bun x wxt build --mode localdev",
+    "build:dev": "WXT_API_ORIGIN=https://dev.booth-plus.ribe.moe bun x wxt build --mode dev",
+    "build:prod": "WXT_API_ORIGIN=https://booth-plus.ribe.moe bun x wxt build --mode prod",
+    "build:firefox": "WXT_API_ORIGIN=https://booth-plus.ribe.moe bun x wxt build -b firefox --mode prod",
+    "zip": "bun run zip:prod",
+    "zip:dev": "WXT_API_ORIGIN=https://dev.booth-plus.ribe.moe bun x wxt zip --mode dev",
+    "zip:prod": "WXT_API_ORIGIN=https://booth-plus.ribe.moe bun x wxt zip --mode prod",
+    "zip:firefox": "WXT_API_ORIGIN=https://booth-plus.ribe.moe bun x wxt zip -b firefox --mode prod",
+    "compile": "bun x tsc --noEmit",
+    "postinstall": "bun x wxt prepare"
+  },
+  "dependencies": {
+    "@tabler/icons-react": "3.35.0",
+    "@tailwindcss/vite": "4.1.17",
+    "@tanstack/react-query": "5.90.9",
+    "@webext-core/messaging": "2.3.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-toastify": "11.0.5",
+    "tailwindcss": "4.1.17"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.1",
+    "@types/react": "19.2.4",
+    "@types/react-dom": "19.2.3",
+    "@wxt-dev/module-react": "1.1.5",
+    "@wxt-dev/i18n": "0.2.4",
+    "typescript": "5.9.3",
+    "wxt": "0.20.11"
+  }
+}

@@ -1,0 +1,268 @@
+name: Deploy application
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - ".github/workflows/deploy-backend.yml"
+      - "apps/backend/**"
+      - "apps/admin/**"
+      - "package.json"
+      - "bun.lock"
+      - "deploy/oci/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: ghcr.io/ribekim/booth-plus-backend
+  ADMIN_IMAGE_NAME: ghcr.io/ribekim/booth-plus-admin
+
+concurrency:
+  group: booth-plus-deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref_name == 'dev' || github.ref_name == 'main'
+    runs-on: ubuntu-22.04
+    env:
+      DATABASE_URL: postgresql://booth_plus:booth_plus@localhost:5432/booth_plus
+      DATABASE_SSL_MODE: disable
+    services:
+      postgres:
+        image: postgres:17.10-alpine3.24
+        env:
+          POSTGRES_DB: booth_plus
+          POSTGRES_USER: booth_plus
+          POSTGRES_PASSWORD: booth_plus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U booth_plus -d booth_plus"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.8.11
+          enable-cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.1
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Check and build admin
+        run: |
+          bun run --filter @booth-plus/admin compile
+          bun run --filter @booth-plus/admin build
+
+      - name: Install backend dependencies
+        run: uv sync --project apps/backend --frozen
+
+      - name: Apply PostgreSQL migrations
+        run: uv run --project apps/backend python apps/backend/scripts/migrate.py
+
+      - name: Test backend
+        run: uv run --project apps/backend pytest -c apps/backend/pyproject.toml apps/backend/tests
+
+      - name: Lint backend
+        run: |
+          uv run --project apps/backend ruff check apps/backend
+          uv run --project apps/backend mypy --config-file apps/backend/pyproject.toml
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      backend_image_ref: ${{ steps.image_ref.outputs.backend }}
+      admin_image_ref: ${{ steps.image_ref.outputs.admin }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Build and push admin image
+        id: admin-image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.ADMIN_IMAGE_NAME }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+      - name: Resolve immutable image reference
+        id: image_ref
+        shell: bash
+        run: |
+          echo "backend=${IMAGE_NAME}@${{ steps.image.outputs.digest }}" >> "$GITHUB_OUTPUT"
+          echo "admin=${ADMIN_IMAGE_NAME}@${{ steps.admin-image.outputs.digest }}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-22.04
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          TS_OAUTH_CLIENT_ID: ${{ vars.TS_OAUTH_CLIENT_ID }}
+          TS_AUDIENCE: ${{ vars.TS_AUDIENCE }}
+          TS_TAG: ${{ vars.TS_TAG }}
+          OCI_TAILSCALE_HOST: ${{ vars.OCI_TAILSCALE_HOST }}
+          OCI_SSH_USER: ${{ vars.OCI_SSH_USER }}
+          OCI_DEPLOY_PATH: ${{ vars.OCI_DEPLOY_PATH }}
+          APP_HEALTH_URL: ${{ vars.APP_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$TS_OAUTH_CLIENT_ID"
+          test -n "$TS_AUDIENCE"
+          test -n "$TS_TAG"
+          test -n "$OCI_TAILSCALE_HOST"
+          test -n "$OCI_SSH_USER"
+          test -n "$OCI_DEPLOY_PATH"
+          test -n "$APP_HEALTH_URL"
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ vars.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: ${{ vars.TS_TAG }}
+          ping: ${{ vars.OCI_TAILSCALE_HOST }}
+
+      - name: Deploy with keyless Tailscale SSH
+        shell: bash
+        env:
+          OCI_TAILSCALE_HOST: ${{ vars.OCI_TAILSCALE_HOST }}
+          OCI_SSH_USER: ${{ vars.OCI_SSH_USER }}
+          OCI_DEPLOY_PATH: ${{ vars.OCI_DEPLOY_PATH }}
+          BACKEND_IMAGE_REF: ${{ needs.publish.outputs.backend_image_ref }}
+          ADMIN_IMAGE_REF: ${{ needs.publish.outputs.admin_image_ref }}
+          ADMIN_DOMAIN: admin.booth-plus.ribe.moe
+          ADMIN_REDIRECT_URL: https://admin.booth-plus.ribe.moe/oauth/callback
+        run: |
+          set -euo pipefail
+
+          [[ "$OCI_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]
+
+          ssh_options=(
+            -o BatchMode=yes
+            -o ConnectTimeout=15
+            -o StrictHostKeyChecking=accept-new
+            -o "UserKnownHostsFile=$RUNNER_TEMP/tailscale_known_hosts"
+          )
+
+          git archive --format=tar HEAD | \
+            ssh "${ssh_options[@]}" \
+              "$OCI_SSH_USER@$OCI_TAILSCALE_HOST" \
+              "mkdir -p '$OCI_DEPLOY_PATH' && tar -xf - -C '$OCI_DEPLOY_PATH'"
+
+          ssh "${ssh_options[@]}" \
+            "$OCI_SSH_USER@$OCI_TAILSCALE_HOST" \
+              "bash -s -- '$BACKEND_IMAGE_REF' '$ADMIN_IMAGE_REF' '$ADMIN_DOMAIN' '$ADMIN_REDIRECT_URL' '$OCI_DEPLOY_PATH'" <<'REMOTE'
+          set -euo pipefail
+
+          backend_image_ref="$1"
+          admin_image_ref="$2"
+          admin_domain="$3"
+          admin_redirect_url="$4"
+          deploy_path="$5"
+
+          [[ "$backend_image_ref" == ghcr.io/ribekim/booth-plus-backend@sha256:* ]]
+          [[ "$admin_image_ref" == ghcr.io/ribekim/booth-plus-admin@sha256:* ]]
+          [[ "$admin_domain" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$admin_redirect_url" =~ ^https://[A-Za-z0-9.-]+/oauth/callback$ ]]
+          [[ "$deploy_path" == /* ]]
+
+          cd "$deploy_path"
+          bash deploy/oci/deploy.sh \
+            "$backend_image_ref" \
+            "$admin_image_ref" \
+            "$admin_domain" \
+            "$admin_redirect_url"
+          REMOTE
+
+      - name: Verify deployment health
+        shell: bash
+        env:
+          APP_HEALTH_URL: ${{ vars.APP_HEALTH_URL }}
+        run: |
+          curl --fail --silent --show-error \
+            --retry 12 \
+            --retry-delay 5 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 20 \
+            "$APP_HEALTH_URL"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mark deployed image
+        shell: bash
+        env:
+          BACKEND_IMAGE_REF: ${{ needs.publish.outputs.backend_image_ref }}
+          ADMIN_IMAGE_REF: ${{ needs.publish.outputs.admin_image_ref }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:${GITHUB_REF_NAME}" \
+            "$BACKEND_IMAGE_REF"
+          docker buildx imagetools create \
+            --tag "${ADMIN_IMAGE_NAME}:${GITHUB_REF_NAME}" \
+            "$ADMIN_IMAGE_REF"
