@@ -6,13 +6,35 @@ import {
   fetchComments,
   fetchProfile,
   finishDiscordLogin,
+  getSelectedEnvironment,
   importComments,
+  setSelectedEnvironment,
   setCommentDisabled,
   type AdminComment,
+  type Environment,
   type UserProfile,
 } from "./api";
 
 const PAGE_SIZE = 50;
+
+const EnvironmentSelect = ({
+  environment,
+  onChange,
+}: {
+  environment: Environment;
+  onChange: (environment: Environment) => void;
+}) => (
+  <label className="environment-select">
+    <span>환경</span>
+    <select
+      value={environment}
+      onChange={(event) => onChange(event.target.value as Environment)}
+    >
+      <option value="prod">PROD</option>
+      <option value="dev">DEV</option>
+    </select>
+  </label>
+);
 
 const parseImportFile = async (file: File): Promise<Record<string, unknown>[]> => {
   const text = await file.text();
@@ -38,6 +60,14 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [environment, setEnvironment] = useState<Environment>(getSelectedEnvironment);
+
+  const switchEnvironment = (next: Environment) => {
+    if (next === environment) return;
+    setSelectedEnvironment(next);
+    setEnvironment(next);
+    location.assign(import.meta.env.BASE_URL);
+  };
 
   const loadProfile = useCallback(async () => {
     try {
@@ -105,6 +135,7 @@ export default function App() {
       <main className="center-card">
         <h1>BoothPlus Admin</h1>
         <p>관리자 Discord 계정으로 로그인해 주세요.</p>
+        <EnvironmentSelect environment={environment} onChange={switchEnvironment} />
         {message && <p className="error">{message}</p>}
         <button className="primary" onClick={beginDiscordLogin}>Discord로 로그인</button>
       </main>
@@ -115,6 +146,7 @@ export default function App() {
       <main className="center-card">
         <h1>접근 권한 없음</h1>
         <p>{profile?.username} 계정에는 관리자 권한이 없습니다.</p>
+        <EnvironmentSelect environment={environment} onChange={switchEnvironment} />
         <button onClick={() => { clearTokens(); setAuthState("guest"); }}>다른 계정으로 로그인</button>
       </main>
     );
@@ -125,7 +157,11 @@ export default function App() {
     <main className="layout">
       <header className="topbar">
         <div><h1>BoothPlus 관리자</h1><p>댓글 관리 및 기존 데이터 가져오기</p></div>
-        <div className="account"><span>{profile?.username}</span><button onClick={() => { clearTokens(); setAuthState("guest"); }}>로그아웃</button></div>
+        <div className="account">
+          <EnvironmentSelect environment={environment} onChange={switchEnvironment} />
+          <span>{profile?.username}</span>
+          <button onClick={() => { clearTokens(); setAuthState("guest"); }}>로그아웃</button>
+        </div>
       </header>
       {message && <pre className="message">{message}</pre>}
       <section className="panel">

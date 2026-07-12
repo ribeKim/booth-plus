@@ -20,21 +20,34 @@ export type AdminComment = {
 };
 export type AdminCommentsPage = { count: number; comments: AdminComment[] };
 export type ImportResult = { imported: number; skipped: number; errors: string[] };
+export type Environment = "prod" | "dev";
 
-const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN as string | undefined)?.replace(/\/$/, "") ?? "";
-const TOKEN_KEY = "booth-plus-admin-tokens";
+const CONFIGURED_API_ORIGIN =
+  (import.meta.env.VITE_API_ORIGIN as string | undefined)?.replace(/\/$/, "") ?? "";
+const ENVIRONMENT_KEY = "booth-plus-admin-environment";
+const OAUTH_STATE_KEY = "booth-plus-admin-oauth-state";
+
+export const getSelectedEnvironment = (): Environment =>
+  localStorage.getItem(ENVIRONMENT_KEY) === "dev" ? "dev" : "prod";
+
+export const setSelectedEnvironment = (environment: Environment) =>
+  localStorage.setItem(ENVIRONMENT_KEY, environment);
+
+const apiOrigin = () => CONFIGURED_API_ORIGIN || `/api-target/${getSelectedEnvironment()}`;
+const tokenKey = () => `booth-plus-admin-tokens:${getSelectedEnvironment()}`;
 
 const loadTokens = (): Tokens | null => {
   try {
-    const raw = localStorage.getItem(TOKEN_KEY);
+    const raw = localStorage.getItem(tokenKey());
     return raw ? (JSON.parse(raw) as Tokens) : null;
   } catch {
     return null;
   }
 };
 
-export const clearTokens = () => localStorage.removeItem(TOKEN_KEY);
-export const saveTokens = (tokens: Tokens) => localStorage.setItem(TOKEN_KEY, JSON.stringify(tokens));
+export const clearTokens = () => localStorage.removeItem(tokenKey());
+export const saveTokens = (tokens: Tokens) =>
+  localStorage.setItem(tokenKey(), JSON.stringify(tokens));
 
 const responseError = async (response: Response) => {
   try {
@@ -51,7 +64,7 @@ const refreshTokens = async (): Promise<Tokens | null> => {
   const current = loadTokens();
   if (!current?.refreshToken) return null;
   if (!refreshing) {
-    refreshing = fetch(`${API_ORIGIN}/api/auth/token`, {
+    refreshing = fetch(`${apiOrigin()}/api/auth/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken: current.refreshToken }),
@@ -73,7 +86,7 @@ const refreshTokens = async (): Promise<Tokens | null> => {
 
 const apiFetch = async <T>(path: string, init: RequestInit = {}, retry = true): Promise<T> => {
   const tokens = loadTokens();
-  const response = await fetch(`${API_ORIGIN}/api${path}`, {
+  const response = await fetch(`${apiOrigin()}/api${path}`, {
     ...init,
     headers: {
       Accept: "application/json",
@@ -94,17 +107,34 @@ const callbackUrl = () => new URL(`${import.meta.env.BASE_URL}oauth/callback`, l
 export const beginDiscordLogin = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   const state = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-  sessionStorage.setItem("booth-plus-admin-oauth-state", state);
+  sessionStorage.setItem(
+    OAUTH_STATE_KEY,
+    JSON.stringify({ state, environment: getSelectedEnvironment() }),
+  );
   const query = new URLSearchParams({ redirectUrl: callbackUrl(), state });
-  location.assign(`${API_ORIGIN}/api/auth/oauth/discord?${query}`);
+  location.assign(`${apiOrigin()}/api/auth/oauth/discord?${query}`);
 };
 
 export const finishDiscordLogin = async (code: string, state: string): Promise<void> => {
-  const expected = sessionStorage.getItem("booth-plus-admin-oauth-state");
-  sessionStorage.removeItem("booth-plus-admin-oauth-state");
-  if (!expected || state !== expected) throw new Error("로그인 요청 상태가 일치하지 않습니다.");
+  const rawExpected = sessionStorage.getItem(OAUTH_STATE_KEY);
+  sessionStorage.removeItem(OAUTH_STATE_KEY);
+  let expected: { state: string; environment: Environment } | null = null;
+  try {
+    expected = rawExpected
+      ? JSON.parse(rawExpected) as { state: string; environment: Environment }
+      : null;
+  } catch {
+    expected = null;
+  }
+  if (
+    !expected ||
+    state !== expected.state ||
+    getSelectedEnvironment() !== expected.environment
+  ) {
+    throw new Error("로그인 요청 상태 또는 환경이 일치하지 않습니다.");
+  }
   const query = new URLSearchParams({ code, redirectUrl: callbackUrl() });
-  const response = await fetch(`${API_ORIGIN}/api/auth/oauth/discord/callback?${query}`);
+  const response = await fetch(`${apiOrigin()}/api/auth/oauth/discord/callback?${query}`);
   if (!response.ok) throw new Error(await responseError(response));
   saveTokens((await response.json()) as Tokens);
 };

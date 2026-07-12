@@ -16,7 +16,7 @@ x-backend-environment: &backend-environment
   AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in deploy/oci/.env}
   DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?Set DISCORD_CLIENT_ID in deploy/oci/.env}
   DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?Set DISCORD_CLIENT_SECRET in deploy/oci/.env}
-  ADMIN_REDIRECT_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in deploy/oci/.env}/admin/oauth/callback
+  ADMIN_REDIRECT_URL: ${ADMIN_REDIRECT_URL:?Set ADMIN_REDIRECT_URL in deploy/oci/.env}
 
 x-backend-service: &backend-service
   image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in deploy/oci/.env}
@@ -119,6 +119,7 @@ services:
     image: caddy:2.11.4-alpine
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in deploy/oci/.env}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?Set ADMIN_DOMAIN in deploy/oci/.env}
       ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in deploy/oci/.env}
     ports:
       - "80:80"

@@ -47,7 +47,12 @@ Discord login receives `users.admin=true`; removing an ID from the allowlist tak
 next login. Admin endpoints support comment search, hide/restore, deletion, and Mongo-style JSON
 comment import. The standalone `apps/admin` web application exposes these tools only when
 `/api/user/me` reports `admin=true`. Configure `ADMIN_REDIRECT_URL` with its exact Discord OAuth
-callback URL; production serves the app at `/admin/`.
+callback URL; production serves the app from `https://admin.booth-plus.ribe.moe/`.
+The admin UI can switch between production and development; Caddy routes its environment-specific
+API prefixes to the corresponding backend while keeping browser requests same-origin.
+Both backends must set `ADMIN_REDIRECT_URL=https://admin.booth-plus.ribe.moe/oauth/callback`.
+The development deployment may use a separate `ADMIN_DOMAIN` such as
+`admin-dev.booth-plus.ribe.moe` so it does not request certificates for the production hostname.
 
 The importer accepts JSON arrays, `{ "comments": [...] }`, or JSONL from the admin web UI. It maps
 legacy `_id`, `productId`, `userId`, timestamps, disabled state, and vote-user arrays. Stored

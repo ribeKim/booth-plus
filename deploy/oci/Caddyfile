@@ -5,21 +5,40 @@
 {$APP_DOMAIN} {
 	encode zstd gzip
 
-	@admin-root path /admin
-	redir @admin-root /admin/ 308
+	reverse_proxy backend:3000 {
+		header_up X-Forwarded-For {remote_host}
+		health_uri /api/health/storage
+		health_interval 30s
+		health_timeout 5s
+	}
 
-	handle_path /admin/* {
-		reverse_proxy admin:8080 {
-			health_uri /health
+	log {
+		output stdout
+		format json
+	}
+}
+
+{$ADMIN_DOMAIN} {
+	encode zstd gzip
+
+	handle_path /api-target/prod/* {
+		reverse_proxy backend:3000 {
+			header_up X-Forwarded-For {remote_host}
+			health_uri /api/health/storage
 			health_interval 30s
 			health_timeout 5s
 		}
 	}
 
+	handle_path /api-target/dev/* {
+		reverse_proxy https://dev.booth-plus.ribe.moe {
+			header_up Host dev.booth-plus.ribe.moe
+		}
+	}
+
 	handle {
-		reverse_proxy backend:3000 {
-			header_up X-Forwarded-For {remote_host}
-			health_uri /api/health/storage
+		reverse_proxy admin:8080 {
+			health_uri /health
 			health_interval 30s
 			health_timeout 5s
 		}
