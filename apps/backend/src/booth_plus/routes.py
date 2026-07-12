@@ -183,7 +183,9 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
                 "scope": "identify",
             }
         )
-        return RedirectResponse(f"https://discord.com/oauth2/authorize?{query}")
+        return RedirectResponse(
+            f"https://discord.com/api/oauth2/authorize?{query}", status_code=302
+        )
 
     @router.get("/auth/oauth/discord/callback")
     async def discord_callback(

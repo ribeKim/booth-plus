@@ -98,3 +98,21 @@ async def test_protected_route_requires_authentication() -> None:
         response = await client.get("/api/user/me")
     assert response.status_code == 401, response.text
     assert response.json()["message"] == "authentication required"
+
+
+async def test_discord_login_uses_legacy_desktop_handoff_url() -> None:
+    configured = replace(settings(), discord_client_id="123456789")
+    redirect_url = "https://hafbafjoecfjdlhjilpakabocglkaegj.chromiumapp.org/"
+    async with AsyncClient(
+        transport=ASGITransport(app=create_app(configured, FakeDatabase())),
+        base_url="http://test",
+        follow_redirects=False,
+    ) as client:
+        response = await client.get(
+            "/api/auth/oauth/discord", params={"redirectUrl": redirect_url}
+        )
+
+    assert response.status_code == 302
+    assert response.headers["location"].startswith(
+        "https://discord.com/api/oauth2/authorize?"
+    )
