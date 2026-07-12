@@ -194,7 +194,7 @@ export const submitComment = (
 export const deleteComment = async (productId: string) =>{
   const tokens = await authTokenStorage.getValue();
   const accessToken = tokens?.accessToken;
-  apiFetch(`/comment/${productId}`, {
+  return apiFetch(`/comment/${productId}`, {
     method: "DELETE",
     headers: {
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),

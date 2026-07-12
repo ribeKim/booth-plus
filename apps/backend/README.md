@@ -36,4 +36,6 @@ SQLAlchemy 2.x provides the async application engine and schema metadata. Alembi
 
 Use either `DATABASE_URL` or `DATABASE_URL_FILE`, never both. Production uses `DATABASE_SSL_MODE=verify-full` with `DATABASE_SSL_CA_FILE`; local development uses `disable`. Rate limiting is controlled with `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`, and `RATE_LIMIT_WRITE_MAX_REQUESTS`.
 
-The database schema is present, but the authentication, product, review, vote, and batch-summary service APIs still need to be implemented.
+The frontend-facing Discord authentication, user profile, product lookup/search,
+review CRUD, and review voting APIs are implemented. Configure `AUTH_SECRET`,
+`DISCORD_CLIENT_ID`, and `DISCORD_CLIENT_SECRET` before using Discord login.

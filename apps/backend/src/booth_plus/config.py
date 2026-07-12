@@ -21,6 +21,11 @@ class Settings:
     rate_limit_window_ms: int
     rate_limit_max_requests: int
     rate_limit_write_max_requests: int
+    auth_secret: str
+    access_token_ttl_seconds: int
+    refresh_token_ttl_seconds: int
+    discord_client_id: str
+    discord_client_secret: str
 
 
 def _integer(env: dict[str, str], name: str, default: int, minimum: int, maximum: int) -> int:
@@ -96,4 +101,11 @@ def load_settings(environment: dict[str, str] | None = None) -> Settings:
         rate_limit_window_ms=_integer(env, "RATE_LIMIT_WINDOW_MS", 60000, 1000, 3600000),
         rate_limit_max_requests=_integer(env, "RATE_LIMIT_MAX_REQUESTS", 300, 1, 100000),
         rate_limit_write_max_requests=_integer(env, "RATE_LIMIT_WRITE_MAX_REQUESTS", 60, 1, 100000),
+        auth_secret=env.get("AUTH_SECRET", "development-only-change-me").strip(),
+        access_token_ttl_seconds=_integer(env, "ACCESS_TOKEN_TTL_SECONDS", 900, 60, 86400),
+        refresh_token_ttl_seconds=_integer(
+            env, "REFRESH_TOKEN_TTL_SECONDS", 2592000, 3600, 31536000
+        ),
+        discord_client_id=env.get("DISCORD_CLIENT_ID", "").strip(),
+        discord_client_secret=env.get("DISCORD_CLIENT_SECRET", "").strip(),
     )

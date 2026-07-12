@@ -60,3 +60,41 @@ async def test_rate_limit() -> None:
         response = await client.get("/api/missing")
     assert response.status_code == 429
     assert "Retry-After" in response.headers
+
+
+async def test_frontend_api_routes_are_registered() -> None:
+    app = create_app(settings(), FakeDatabase())
+    registered = {(method, route.path) for route in app.routes for method in route.methods or []}
+    expected = {
+        ("GET", "/api/auth/oauth/discord"),
+        ("GET", "/api/auth/oauth/discord/callback"),
+        ("POST", "/api/auth/token"),
+        ("GET", "/api/user/me"),
+        ("PUT", "/api/user/adult"),
+        ("PUT", "/api/user/autoCollapse"),
+        ("PUT", "/api/user/hideAvatar"),
+        ("PUT", "/api/user/username"),
+        ("PUT", "/api/user/bio"),
+        ("GET", "/api/user/avatar/{user_id}"),
+        ("GET", "/api/product/search"),
+        ("GET", "/api/product/{product_id}"),
+        ("GET", "/api/comment"),
+        ("GET", "/api/comment/my"),
+        ("GET", "/api/comment/{product_id}/my"),
+        ("POST", "/api/comment/{product_id}"),
+        ("PUT", "/api/comment/{product_id}"),
+        ("DELETE", "/api/comment/{product_id}"),
+        ("POST", "/api/comment/{comment_id}/upvote"),
+        ("POST", "/api/comment/{comment_id}/downvote"),
+    }
+    assert expected <= registered
+
+
+async def test_protected_route_requires_authentication() -> None:
+    async with AsyncClient(
+        transport=ASGITransport(app=create_app(settings(), FakeDatabase())),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/api/user/me")
+    assert response.status_code == 401, response.text
+    assert response.json()["message"] == "authentication required"

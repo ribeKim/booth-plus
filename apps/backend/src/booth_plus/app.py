@@ -4,13 +4,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Protocol
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import Settings, load_settings
 from .database import Database
 from .rate_limit import RateLimitMiddleware
+from .routes import build_api_router
 
 
 class ReadinessDatabase(Protocol):
@@ -51,6 +52,7 @@ def create_app(
         allow_headers=["Authorization", "Content-Type"],
         max_age=86400,
     )
+    app.include_router(build_api_router(settings, database))
     app.add_middleware(
         RateLimitMiddleware,
         window_ms=settings.rate_limit_window_ms,
@@ -81,6 +83,18 @@ def create_app(
     async def not_found(_: Request, __: Exception) -> JSONResponse:
         return JSONResponse(
             {"statusCode": 404, "error": "Not Found", "message": "Not Found"}, status_code=404
+        )
+
+    @app.exception_handler(HTTPException)
+    async def api_error(_: Request, error: HTTPException) -> JSONResponse:
+        return JSONResponse(
+            {
+                "statusCode": error.status_code,
+                "error": "Request Error",
+                "message": str(error.detail),
+            },
+            status_code=error.status_code,
+            headers=error.headers,
         )
 
     return app
