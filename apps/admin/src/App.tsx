@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   beginDiscordLogin,
-  clearTokens,
   deleteComment,
   fetchComments,
   fetchProfile,
   finishDiscordLogin,
   getSelectedEnvironment,
   importComments,
+  logout,
   setSelectedEnvironment,
   setCommentDisabled,
   type AdminComment,
@@ -67,6 +67,13 @@ export default function App() {
     setSelectedEnvironment(next);
     setEnvironment(next);
     location.assign(import.meta.env.BASE_URL);
+  };
+
+  const handleLogout = () => {
+    void logout().finally(() => {
+      setProfile(null);
+      setAuthState("guest");
+    });
   };
 
   const loadProfile = useCallback(async () => {
@@ -147,7 +154,7 @@ export default function App() {
         <h1>접근 권한 없음</h1>
         <p>{profile?.username} 계정에는 관리자 권한이 없습니다.</p>
         <EnvironmentSelect environment={environment} onChange={switchEnvironment} />
-        <button onClick={() => { clearTokens(); setAuthState("guest"); }}>다른 계정으로 로그인</button>
+        <button onClick={handleLogout}>다른 계정으로 로그인</button>
       </main>
     );
   }
@@ -160,7 +167,7 @@ export default function App() {
         <div className="account">
           <EnvironmentSelect environment={environment} onChange={switchEnvironment} />
           <span>{profile?.username}</span>
-          <button onClick={() => { clearTokens(); setAuthState("guest"); }}>로그아웃</button>
+          <button onClick={handleLogout}>로그아웃</button>
         </div>
       </header>
       {message && <pre className="message">{message}</pre>}

@@ -118,6 +118,18 @@ export const exchangeDiscordCode = (code: string, redirectUrl: string) =>
     `/auth/oauth/discord/callback?code=${encodeURIComponent(code)}&redirectUrl=${encodeURIComponent(redirectUrl)}`,
   );
 
+export const revokeSession = async (refreshToken: string) => {
+  const response = await fetch(`${API_BASE}/auth/logout`, {
+    method: "POST",
+    mode: "cors",
+    headers: defaultHeaders,
+    body: JSON.stringify({ refreshToken }),
+  });
+  if (!response.ok) {
+    throw new ApiError(await readResponseText(response), response.status);
+  }
+};
+
 const updateUserField = (path: string, body: Record<string, unknown>) =>
   apiFetch<{ updated: boolean }>(path, { method: "PUT", body: JSON.stringify(body) });
 

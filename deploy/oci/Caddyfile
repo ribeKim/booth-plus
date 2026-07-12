@@ -22,11 +22,9 @@
 	encode zstd gzip
 
 	handle_path /api-target/prod/* {
-		reverse_proxy backend:3000 {
+		reverse_proxy https://booth-plus.ribe.moe {
+			header_up Host booth-plus.ribe.moe
 			header_up X-Forwarded-For {remote_host}
-			health_uri /api/health/storage
-			health_interval 30s
-			health_timeout 5s
 		}
 	}
 

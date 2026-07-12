@@ -1,4 +1,4 @@
-name: Cleanup backend images
+name: Cleanup application images
 
 on:
   schedule:
@@ -16,19 +16,25 @@ permissions:
   packages: write
 
 concurrency:
-  group: booth-plus-backend-image-cleanup
+  group: booth-plus-application-image-cleanup
   cancel-in-progress: false
 
 jobs:
   cleanup:
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        package-name:
+          - booth-plus-backend
+          - booth-plus-admin
     steps:
       - uses: actions/checkout@v4
 
       - name: Apply GHCR retention policy
         uses: actions/github-script@v7
         env:
-          PACKAGE_NAME: booth-plus-backend
+          PACKAGE_NAME: ${{ matrix.package-name }}
           KEEP_BUILDS: "10"
           MIN_AGE_DAYS: "30"
           RELATED_WINDOW_MINUTES: "15"

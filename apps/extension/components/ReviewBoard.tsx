@@ -4,6 +4,7 @@ import {
   createComment,
   deleteComment,
   exchangeDiscordCode,
+  revokeSession,
   updateComment,
   voteComment,
 } from "@/components/review/api";
@@ -147,13 +148,16 @@ export function ReviewBoard() {
   };
 
   const handleLogout = async () => {
+    const tokens = await authTokenStorage.getValue();
     try {
+      if (tokens?.refreshToken) await revokeSession(tokens.refreshToken);
+    } catch {
+      // Always clear local credentials even if the best-effort revocation request fails.
+    } finally {
       await authTokenStorage.setValue(null);
       setEditingComment(null);
       setForm(emptyForm());
       await refreshAuthData();
-    } catch {
-      showErrorToast(i18n.t("messages.logoutError"));
     }
   };
 

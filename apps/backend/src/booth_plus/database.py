@@ -9,10 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from .config import Settings
 
+REQUIRED_SCHEMA_REVISION = "0006_anonymous_credentials"
+
 READINESS_QUERY = """
 SELECT NOT pg_is_in_recovery()
   AND current_setting('transaction_read_only') = 'off'
-  AND EXISTS (SELECT 1 FROM public.alembic_version)
+  AND EXISTS (
+    SELECT 1 FROM public.alembic_version WHERE version_num = :required_revision
+  )
   AND to_regclass('public.users') IS NOT NULL
   AND to_regclass('public.oauth_accounts') IS NOT NULL
   AND to_regclass('public.auth_sessions') IS NOT NULL
@@ -71,5 +75,7 @@ class Database:
 
     async def is_ready(self) -> bool:
         async with self.engine.connect() as connection:
-            result = await connection.scalar(text(READINESS_QUERY))
+            result = await connection.scalar(
+                text(READINESS_QUERY), {"required_revision": REQUIRED_SCHEMA_REVISION}
+            )
         return result is True

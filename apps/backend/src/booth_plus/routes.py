@@ -317,6 +317,19 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             )
             return await tokens(str(row.user_id), connection)
 
+    @router.post("/auth/logout")
+    async def logout(body: RefreshBody) -> dict[str, bool]:
+        async with engine().begin() as connection:
+            await connection.execute(
+                text(
+                    "UPDATE auth_sessions SET revoked_at=CURRENT_TIMESTAMP, "
+                    "last_used_at=CURRENT_TIMESTAMP "
+                    "WHERE refresh_token_hash=:hash AND revoked_at IS NULL"
+                ),
+                {"hash": token_hash(body.refresh_token)},
+            )
+        return {"revoked": True}
+
     @router.get("/user/me")
     async def user_me(user_id: Annotated[str, Depends(current_user)]) -> dict[str, Any]:
         async with engine().connect() as connection:

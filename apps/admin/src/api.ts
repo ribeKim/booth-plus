@@ -49,6 +49,21 @@ export const clearTokens = () => localStorage.removeItem(tokenKey());
 export const saveTokens = (tokens: Tokens) =>
   localStorage.setItem(tokenKey(), JSON.stringify(tokens));
 
+export const logout = async (): Promise<void> => {
+  const current = loadTokens();
+  try {
+    if (current?.refreshToken) {
+      await fetch(`${apiOrigin()}/api/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: current.refreshToken }),
+      });
+    }
+  } finally {
+    clearTokens();
+  }
+};
+
 const responseError = async (response: Response) => {
   try {
     const payload = (await response.json()) as { message?: string; detail?: string };

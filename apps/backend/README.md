@@ -40,6 +40,9 @@ The frontend-facing Discord authentication, user profile, review CRUD, and revie
 are implemented. Configure `AUTH_SECRET`, `DISCORD_CLIENT_ID`, and `DISCORD_CLIENT_SECRET` before
 using Discord login.
 
+`POST /api/auth/logout` revokes the supplied refresh token before clients remove their local
+credentials. Clients still clear local credentials if the revocation request cannot be completed.
+
 Guests create comments with an anonymous ID and a password of at least six characters. The
 password is stored only as a salted scrypt hash and is required to edit or delete that comment.
 Anonymous comments created before this credential policy remain readable but cannot be edited.

@@ -27,7 +27,7 @@ class DisabledBody(BaseModel):
 
 def _scalar(value: Any) -> str:
     if isinstance(value, dict):
-        for key in ("$oid", "$date", "id", "_id"):
+        for key in ("$oid", "$date", "$numberLong", "$numberInt", "$numberDouble", "id", "_id"):
             if key in value:
                 return _scalar(value[key])
     return "" if value is None else str(value).strip()
@@ -44,8 +44,8 @@ def _date(value: Any) -> datetime:
                 timestamp /= 1000
             return datetime.fromtimestamp(timestamp, UTC)
         return datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(UTC)
-    except (ValueError, OSError):
-        return datetime.now(UTC)
+    except (ValueError, OSError) as error:
+        raise ValueError(f"invalid legacy date: {raw}") from error
 
 
 def _legacy_user(record: dict[str, Any]) -> tuple[str | None, str]:

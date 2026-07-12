@@ -69,6 +69,7 @@ async def test_frontend_api_routes_are_registered() -> None:
         ("GET", "/api/auth/oauth/discord"),
         ("GET", "/api/auth/oauth/discord/callback"),
         ("POST", "/api/auth/token"),
+        ("POST", "/api/auth/logout"),
         ("GET", "/api/user/me"),
         ("PUT", "/api/user/autoCollapse"),
         ("PUT", "/api/user/hideAvatar"),
