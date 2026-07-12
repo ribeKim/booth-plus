@@ -5,14 +5,19 @@
 
 node_modules
 **/node_modules
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
 dist
 **/dist
 .output
 **/.output
 .wxt
 **/.wxt
-.wrangler
-**/.wrangler
 coverage
 **/coverage
 
@@ -42,7 +47,5 @@ bun-error.log*
 .DS_Store
 Thumbs.db
 
-# Bun needs each workspace manifest to validate the frozen monorepo lockfile.
-# Keep the extension source out of the backend build context while allowing its manifest.
-apps/extension/**
-!apps/extension/package.json
+# The backend image contains only the Python application.
+apps/extension/

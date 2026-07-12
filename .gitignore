@@ -15,10 +15,15 @@ dist-ssr
 .env.*
 !.env.example
 .dev.vars*
-.wrangler
 .output
 .wxt
 coverage
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
+*.pyc
 deploy/oci/secrets/
 
 # Editor directories and files

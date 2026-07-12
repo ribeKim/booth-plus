@@ -1,12 +1,14 @@
 name: booth-plus-oci
 
 x-backend-environment: &backend-environment
-  NODE_ENV: production
   HOST: 0.0.0.0
   PORT: "3000"
   DATABASE_SSL_MODE: verify-full
   DATABASE_SSL_CA_FILE: /run/secrets/oci-postgresql-ca.pem
   CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in deploy/oci/.env}
+  RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+  RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-300}
+  RATE_LIMIT_WRITE_MAX_REQUESTS: ${RATE_LIMIT_WRITE_MAX_REQUESTS:-60}
 
 x-backend-service: &backend-service
   image: ${BACKEND_IMAGE:?Set BACKEND_IMAGE in deploy/oci/.env}
@@ -35,7 +37,7 @@ services:
       DATABASE_URL_FILE: /run/secrets/migration-database-url
     secrets:
       - migration-database-url
-    command: ["bun", "run", "db:migrate"]
+    command: ["python", "scripts/migrate.py"]
     restart: "no"
 
   backend:
@@ -50,9 +52,9 @@ services:
     healthcheck:
       test:
         - CMD
-        - bun
-        - -e
-        - "const response = await fetch('http://127.0.0.1:3000/api/health/storage'); if (!response.ok) process.exit(1)"
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/api/health/storage')"
       interval: 15s
       timeout: 5s
       retries: 8

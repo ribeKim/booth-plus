@@ -1,40 +1,27 @@
 # syntax=docker/dockerfile:1.7
 
-FROM oven/bun:1.3.1-alpine AS dependencies
+FROM ghcr.io/astral-sh/uv:0.8.11-python3.13-bookworm-slim AS dependencies
 
-WORKDIR /workspace
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+WORKDIR /app
+COPY apps/backend/pyproject.toml apps/backend/uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
-COPY package.json bun.lock bunfig.toml ./
-COPY apps/backend/package.json ./apps/backend/package.json
-COPY apps/extension/package.json ./apps/extension/package.json
-
-RUN bun install \
-    --frozen-lockfile \
-    --production \
-    --filter @booth-plus/backend
-
-FROM oven/bun:1.3.1-alpine AS runtime
-
-ENV NODE_ENV=production \
-    HOST=0.0.0.0 \
-    PORT=3000
-
-WORKDIR /workspace
-
-COPY --from=dependencies --chown=bun:bun /workspace /workspace
-COPY --chown=bun:bun apps/backend/src ./apps/backend/src
-COPY --chown=bun:bun apps/backend/scripts ./apps/backend/scripts
-COPY --chown=bun:bun apps/backend/migrations ./apps/backend/migrations
-
-WORKDIR /workspace/apps/backend
-
-USER bun
+FROM python:3.13-slim-bookworm AS runtime
+ENV PATH=/app/.venv/bin:$PATH PYTHONPATH=/app/src PYTHONUNBUFFERED=1 HOST=0.0.0.0 PORT=3000
+RUN useradd --create-home --uid 10001 app
+WORKDIR /app
+COPY --from=dependencies /app/.venv /app/.venv
+COPY --chown=app:app apps/backend/src ./src
+COPY --chown=app:app apps/backend/scripts ./scripts
+COPY --chown=app:app apps/backend/migrations ./migrations
+USER app
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD ["bun", "-e", "const response = await fetch('http://127.0.0.1:3000/api/health'); process.exit(response.ok ? 0 : 1)"]
+  CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/api/health')"]
 
 STOPSIGNAL SIGTERM
 
-CMD ["bun", "run", "start"]
+CMD ["uvicorn", "booth_plus.app:create_app", "--factory", "--app-dir", "src", "--host", "0.0.0.0", "--port", "3000", "--proxy-headers", "--forwarded-allow-ips", "*"]

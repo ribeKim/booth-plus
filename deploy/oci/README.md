@@ -26,7 +26,7 @@ cp deploy/oci/.env.example deploy/oci/.env
 chmod 600 deploy/oci/.env
 ```
 
-Fill in every value. Keep `APP_DOMAIN=api.example.com` (or another new hostname) while this backend is only a foundation. The extension still calls `/auth`, `/user`, `/product`, and `/comment`; do **not** point the existing `vbt.kamyu.me` API hostname at this deployment until those routes are implemented and cutover-tested.
+Fill in every value. This repository uses `APP_DOMAIN=booth-plus.ribe.moe`; point its DNS record at the OCI VM before starting Caddy. The extension still calls `/auth`, `/user`, `/product`, and `/comment`; do **not** point the existing `vbt.kamyu.me` API hostname at this deployment until those routes are implemented and cutover-tested.
 
 The `.env` file contains paths, not database passwords. Create two root-owned URL files outside the repository:
 
@@ -39,7 +39,7 @@ sudo chmod 0444 \
   /etc/booth-plus/secrets/migration-database-url
 ```
 
-Each file must contain exactly one `postgresql://` URL with the OCI Database with PostgreSQL primary FQDN. Percent-encode reserved characters in its username and password, and omit `ssl`, `sslmode`, `sslcert`, `sslkey`, `sslrootcert`, and `sslnegotiation` URL parameters because the container configures verified TLS separately. The files are read-only but world-readable so the image's non-root `bun` user can read file-backed Compose secrets; the parent directory remains root-owned mode `0700`, preventing non-root host users from traversing to them. `DATABASE_URL_HOST_FILE` must reference the application-role URL, and `MIGRATION_DATABASE_URL_HOST_FILE` must reference the separate migration-role URL. The backend receives only `/run/secrets/database-url`; only the one-shot migrator receives `/run/secrets/migration-database-url`. Do not grant schema ownership or DDL privileges to the application role.
+Each file must contain exactly one `postgresql://` URL with the OCI Database with PostgreSQL primary FQDN. Percent-encode reserved characters in its username and password, and omit `ssl`, `sslmode`, `sslcert`, `sslkey`, `sslrootcert`, and `sslnegotiation` URL parameters because the container configures verified TLS separately. The files are read-only but world-readable so the image's non-root `app` user can read file-backed Compose secrets; the parent directory remains root-owned mode `0700`, preventing non-root host users from traversing to them. `DATABASE_URL_HOST_FILE` must reference the application-role URL, and `MIGRATION_DATABASE_URL_HOST_FILE` must reference the separate migration-role URL. The backend receives only `/run/secrets/database-url`; only the one-shot migrator receives `/run/secrets/migration-database-url`. Do not grant schema ownership or DDL privileges to the application role.
 
 Bootstrap the roles from an administrator `psql` session connected to the application database. The values below are `psql` variables; replace the database name and password placeholders only in a private administrator session, never in a tracked file:
 
@@ -116,6 +116,73 @@ docker compose \
   config --quiet
 ```
 
+## Keyless GitHub Actions deployment over Tailscale
+
+The complete least-privilege policy is in [`tailscale-policy.hujson`](./tailscale-policy.hujson). Paste the entire file into **Tailscale Admin Console → Access controls**; its network and SSH tests must pass before the policy is accepted.
+
+Prepare each VM with a dedicated deployment account and Tailscale SSH:
+
+```bash
+sudo useradd --create-home --shell /bin/bash deploy
+sudo usermod -aG docker deploy
+sudo tailscale set --ssh
+```
+
+Apply exactly one environment tag. Use `sudo tailscale set --advertise-tags=tag:booth-plus-dev` on the dev VM or `tag:booth-plus-prod` on the prod VM, then confirm it on the Machines page. Do not assign both tags to one VM. Keep public TCP 22 closed; deployment SSH enters only through Tailscale.
+
+| GitHub Environment | `TS_TAG` | VM tag | `OCI_SSH_USER` |
+| --- | --- | --- | --- |
+| `dev` | `tag:github-actions-dev` | `tag:booth-plus-dev` | `deploy` |
+| `prod` | `tag:github-actions-prod` | `tag:booth-plus-prod` | `deploy` |
+
+CI can reach only TCP 22 on the matching environment VM. It cannot cross environments or reach VM ports 80/443 over the tailnet. Tailnet administrators may SSH as `deploy` after check-mode reauthentication; the policy does not permit `root`, `ubuntu`, or `opc`.
+
+Pushes to `dev` deploy through the GitHub `dev` Environment. Pushes to `main` deploy through `prod`. The workflow publishes one multi-architecture image to `ghcr.io/ribekim/booth-plus-backend`, joins the tailnet as an ephemeral tagged node through GitHub OIDC, connects with Tailscale SSH without an SSH private key, runs migrations, recreates the backend, and checks the public readiness endpoint.
+
+Use separate Tailscale federated identities for the two GitHub Environments:
+
+| Environment | Branch | OIDC subject | Runner tag |
+| --- | --- | --- | --- |
+| `dev` | `dev` | `repo:ribeKim/booth-plus:environment:dev` | `tag:github-actions-dev` |
+| `prod` | `main` | `repo:ribeKim/booth-plus:environment:prod` | `tag:github-actions-prod` |
+
+Give each federated identity only the `auth_keys` scope and its listed tag. Also constrain the `repository`, `environment`, `ref`, and `job_workflow_ref` claims. For example, the dev identity uses `ref=refs/heads/dev` and `job_workflow_ref=ribeKim/booth-plus/.github/workflows/deploy-backend.yml@refs/heads/dev`; prod uses `main` in both places.
+
+Set these Environment variables in both `dev` and `prod`, using environment-specific values:
+
+```text
+TS_OAUTH_CLIENT_ID
+TS_AUDIENCE
+TS_TAG
+OCI_TAILSCALE_HOST
+OCI_SSH_USER
+OCI_DEPLOY_PATH
+APP_HEALTH_URL
+```
+
+The current dev health URL is:
+
+```text
+APP_HEALTH_URL=https://booth-plus.ribe.moe/api/health/storage
+```
+
+No `OCI_SSH_PRIVATE_KEY`, `known_hosts`, or GitHub deploy key is used. The workflow streams the triggering commit's tracked files with `git archive` over Tailscale SSH, while the ignored `deploy/oci/.env` and `/etc/booth-plus` secrets remain on the VM. On each target VM, create the local deployment user, give it access to the deployment directory and Docker, tag the VM appropriately, and enable Tailscale SSH:
+
+```sh
+sudo useradd --create-home --shell /bin/bash deploy
+sudo usermod -aG docker deploy
+sudo install -d -o deploy -g deploy -m 0750 /opt/booth-plus
+sudo tailscale set --ssh
+```
+
+The Docker group is root-equivalent. A root-owned deployment wrapper with a narrowly scoped sudo rule is preferable if this VM later runs workloads with different trust levels.
+
+The policy file supplies both required layers: a network grant for TCP 22 and a Tailscale SSH authorization for the `deploy` account. Tagged CI nodes use narrowly scoped `accept` rules because they cannot complete interactive check mode; GitHub Environment protection and constrained OIDC claims form the deployment approval boundary.
+
+Remove any broader allow rule that would grant the CI tags more access. Test a manual `workflow_dispatch` deployment before removing public TCP 22 from the OCI NSG. The VM still needs registry access: make the GHCR package public, or log the `deploy` user into GHCR once with a read-only `read:packages` token.
+
+The Compose project has a fixed name and binds public ports 80/443. Therefore dev and prod cannot run side by side on the same VM with this Compose file. Use separate VMs, or enable only the environment that owns the single VM.
+
 ## First deployment
 
 Prepare one backend image, run the one-shot migration from that image, and then start the long-running services from the same image reference. For an on-VM build:
@@ -129,9 +196,17 @@ bun run deploy:backend
 
 For an image published by CI, set `BACKEND_IMAGE` to its immutable tag or digest and replace `bun run deploy:build` with `bun run deploy:pull`. Do not run both for one release. `deploy:migrate` disables dependency startup, pulling, and building; `deploy:backend` disables building and only pulls a missing image such as Caddy. Consequently, migration and runtime use the exact `BACKEND_IMAGE` prepared in the first step.
 
-The migration container runs `bun run db:migrate` and exits. It is behind the `migrate` profile so a normal `up -d` cannot rerun schema changes accidentally. Caddy is the only public service; the backend is reachable only on the private Compose network. Caddy runs with a read-only root filesystem, no-new-privileges, all capabilities dropped except `NET_BIND_SERVICE`, and writable state limited to `/data`, `/config`, and a temporary `/tmp`.
+The migration container runs the FastAPI image's Python migration script and exits. It is behind the `migrate` profile so a normal `up -d` cannot rerun schema changes accidentally. Caddy is the only public service; the backend is reachable only on the private Compose network. Caddy runs with a read-only root filesystem, no-new-privileges, all capabilities dropped except `NET_BIND_SERVICE`, and writable state limited to `/data`, `/config`, and a temporary `/tmp`.
 
 Caddy obtains a public TLS certificate for `APP_DOMAIN`, so DNS and ports 80/443 must be ready before it starts. Its persistent volumes retain ACME state across container replacements.
+
+## Application rate limiting
+
+Caddy replaces `X-Forwarded-For` with the direct client address before forwarding a request. The backend is not published on a host port, so only Caddy can supply this trusted value. Keep that network boundary intact; never publish backend port 3000 directly.
+
+The backend limits each client to 300 API requests per minute and applies a second limit of 60 state-changing requests (`POST`, `PUT`, `PATCH`, and `DELETE`) per minute. Health endpoints are excluded so container and upstream readiness checks cannot lock themselves out. Override `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS`, and `RATE_LIMIT_WRITE_MAX_REQUESTS` in `deploy/oci/.env` when real traffic measurements justify different values. Rejected requests return `429`, `Retry-After`, and standard rate-limit metadata.
+
+This in-process limiter protects application CPU and database capacity; it does not absorb traffic before it reaches the VM. OCI's inherent L3/L4 DDoS mitigation remains the network-layer defense in this no-paid-WAF deployment.
 
 ## Updates
 

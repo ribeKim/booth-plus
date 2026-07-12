@@ -7,7 +7,6 @@ x-backend-image: &backend-image
     dockerfile: apps/backend/Dockerfile
 
 x-backend-environment: &backend-environment
-  NODE_ENV: development
   HOST: 0.0.0.0
   PORT: "3000"
   DATABASE_URL: postgresql://booth_plus:booth_plus_dev@postgres:5432/booth_plus
@@ -36,7 +35,7 @@ services:
   migrate:
     <<: *backend-image
     environment: *backend-environment
-    command: ["bun", "run", "db:migrate"]
+    command: ["python", "scripts/migrate.py"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,9 +54,9 @@ services:
     healthcheck:
       test:
         - CMD
-        - bun
-        - -e
-        - "const response = await fetch('http://127.0.0.1:3000/api/health/storage'); if (!response.ok) process.exit(1)"
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/api/health/storage')"
       interval: 10s
       timeout: 3s
       retries: 12
