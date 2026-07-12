@@ -43,7 +43,6 @@ users = Table(
     Column("id", Text, primary_key=True),
     Column("username", Text, nullable=False),
     Column("bio", Text, nullable=False, server_default=""),
-    Column("adult", Boolean, nullable=False, server_default="false"),
     Column("hide_avatar", Boolean, nullable=False, server_default="false"),
     Column("auto_collapse", Boolean, nullable=False, server_default="false"),
     Column("admin", Boolean, nullable=False, server_default="false"),

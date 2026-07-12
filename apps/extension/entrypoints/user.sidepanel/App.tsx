@@ -1,6 +1,5 @@
 import {
   updateBio,
-  updateUserAdult,
   updateUserAutoCollapse,
   updateUserHideAvatar,
   updateUsername,
@@ -41,7 +40,6 @@ function App() {
   const [formState, setFormState] = useState({
     username: "",
     bio: "",
-    adult: false,
     hideAvatar: false,
     autoCollapse: false,
   });
@@ -62,20 +60,12 @@ function App() {
     setFormState({
       username: profileQuery.data.username,
       bio: profileQuery.data.bio ?? "",
-      adult: profileQuery.data.adult,
       hideAvatar: profileQuery.data.hideAvatar,
       autoCollapse: profileQuery.data.autoCollapse,
     });
     setPage(1);
   }, [profileQuery.data]);
 
-  const adultMutation = useAsyncStatusMutation(
-    queryClient,
-    setStatus,
-    updateUserAdult,
-    i18n.t("userPanel.statuses.adultSaved"),
-    i18n.t("userPanel.statuses.adultError"),
-  );
   const autoCollapseMutation = useAsyncStatusMutation(
     queryClient,
     setStatus,
@@ -105,13 +95,10 @@ function App() {
     i18n.t("userPanel.statuses.bioError"),
   );
 
-  const handleToggle = (field: "adult" | "hideAvatar" | "autoCollapse", value: boolean) => {
+  const handleToggle = (field: "hideAvatar" | "autoCollapse", value: boolean) => {
     setFormState((previous) => ({ ...previous, [field]: value }));
 
     switch (field) {
-      case "adult":
-        adultMutation.mutate(value);
-        break;
       case "hideAvatar":
         hideAvatarMutation.mutate(value);
         break;
@@ -194,22 +181,6 @@ function App() {
 
         <section className="rounded-2xl bg-white p-4 shadow-sm space-y-3">
           <h2 className="text-sm font-semibold text-slate-900">{i18n.t("userPanel.sections.settings")}</h2>
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-            <span className="text-sm text-slate-700">{i18n.t("userPanel.toggles.adult")}</span>
-            <label className="relative inline-flex justify-center cursor-pointer items-center">
-              <input
-                type="checkbox"
-                className="peer sr-only"
-                checked={formState.adult}
-                onChange={(event) => handleToggle("adult", event.target.checked)}
-                disabled={adultMutation.isPending}
-              />
-              <div className="h-5 w-10 rounded-full bg-slate-200 transition peer-checked:bg-[#fc4d50]"></div>
-              <span className="absolute inline-flex justify-center text-[10px] uppercase tracking-[0.2em] text-white">
-                {formState.adult ? i18n.t("common.on") : i18n.t("common.off")}
-              </span>
-            </label>
-          </div>
           <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
             <span className="text-sm text-slate-700">{i18n.t("userPanel.toggles.hideAvatar")}</span>
             <label className="relative inline-flex justify-center cursor-pointer items-center">

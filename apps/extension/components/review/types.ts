@@ -35,7 +35,6 @@ export type UserSummary = {
 
 export type UserProfile = UserSummary & {
   discord: string;
-  adult: boolean;
   hideAvatar: boolean;
   autoCollapse: boolean;
   admin: boolean;

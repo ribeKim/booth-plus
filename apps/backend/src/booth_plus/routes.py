@@ -267,7 +267,6 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
             "id": item["id"],
             "username": item["username"],
             "discord": item["discord"],
-            "adult": item["adult"],
             "hideAvatar": item["hide_avatar"],
             "autoCollapse": item["auto_collapse"],
             "admin": item["admin"],
@@ -283,12 +282,6 @@ def build_api_router(settings: Settings, database: object) -> APIRouter:
         if result.rowcount != 1:
             raise HTTPException(status_code=404, detail="user not found")
         return {"updated": True}
-
-    @router.put("/user/adult")
-    async def user_adult(
-        user_id: Annotated[str, Depends(current_user)], adult: bool = Body(embed=True)
-    ) -> dict[str, bool]:
-        return await update_user("adult", adult, user_id)
 
     @router.put("/user/autoCollapse")
     async def user_auto_collapse(

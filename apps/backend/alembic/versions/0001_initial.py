@@ -9,7 +9,7 @@ UP_SQL = """
 CREATE TABLE users (
   id text PRIMARY KEY,
   username text NOT NULL CHECK (char_length(btrim(username)) > 0),
-  bio text NOT NULL DEFAULT '', adult boolean NOT NULL DEFAULT false,
+  bio text NOT NULL DEFAULT '',
   hide_avatar boolean NOT NULL DEFAULT false, auto_collapse boolean NOT NULL DEFAULT false,
   admin boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP

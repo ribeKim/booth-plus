@@ -194,7 +194,6 @@ export const downvoteComment = (comment: CommentItem) => voteComment(comment, "d
 const updateUserField = (path: string, body: Record<string, unknown>) =>
   apiFetch(path, { method: "PUT", body: JSON.stringify(body) });
 
-export const updateUserAdult = (adult: boolean) => updateUserField("/user/adult", { adult });
 export const updateUserAutoCollapse = (autoCollapse: boolean) =>
   updateUserField("/user/autoCollapse", { autoCollapse });
 export const updateUserHideAvatar = (hideAvatar: boolean) =>

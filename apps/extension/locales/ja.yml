@@ -60,7 +60,6 @@ userPanel:
     settings: 基本設定
     profile: プロフィール
   toggles:
-    adult: アダルトコンテンツを許可
     hideAvatar: プロフィールアバターを非表示
     autoCollapse: 説明を自動で展開
   profileFields:
@@ -69,8 +68,6 @@ userPanel:
     save: 保存
     refresh: 再読み込み
   statuses:
-    adultSaved: アダルト設定を保存しました。
-    adultError: アダルト設定の保存に失敗しました。
     autoCollapseSaved: 自動展開設定を保存しました。
     autoCollapseError: 自動展開設定の保存に失敗しました。
     hideAvatarSaved: アバター表示設定を保存しました。

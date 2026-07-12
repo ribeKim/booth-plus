@@ -60,7 +60,6 @@ userPanel:
     settings: Basic settings
     profile: Profile
   toggles:
-    adult: Allow adult content
     hideAvatar: Hide profile avatar
     autoCollapse: Auto-expand descriptions
   profileFields:
@@ -69,8 +68,6 @@ userPanel:
     save: Save
     refresh: Reload
   statuses:
-    adultSaved: Adult content preference saved.
-    adultError: Failed to save adult content setting.
     autoCollapseSaved: Auto-collapse setting saved.
     autoCollapseError: Failed to save auto-collapse setting.
     hideAvatarSaved: Avatar visibility preference saved.

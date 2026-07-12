@@ -60,7 +60,6 @@ userPanel:
     settings: 기본 설정
     profile: 프로필
   toggles:
-    adult: 성인 콘텐츠 허용
     hideAvatar: 프로필 아바타 숨김
     autoCollapse: 설명 자동 펼침
   profileFields:
@@ -69,8 +68,6 @@ userPanel:
     save: 저장
     refresh: 다시 불러오기
   statuses:
-    adultSaved: 성인 콘텐츠 설정이 저장되었습니다.
-    adultError: 성인 콘텐츠 설정 저장에 실패했습니다.
     autoCollapseSaved: 자동 접기 설정이 저장되었습니다.
     autoCollapseError: 자동 접기 설정 저장에 실패했습니다.
     hideAvatarSaved: 아바타 숨김 설정이 저장되었습니다.
