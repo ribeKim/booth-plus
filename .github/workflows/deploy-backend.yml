@@ -239,13 +239,21 @@ jobs:
         env:
           APP_HEALTH_URL: ${{ vars.APP_HEALTH_URL }}
         run: |
+          set -euo pipefail
+
+          health_url="${APP_HEALTH_URL//$'\r'/}"
+          health_url="${health_url//$'\n'/}"
+          health_url="${health_url#"${health_url%%[![:space:]]*}"}"
+          health_url="${health_url%"${health_url##*[![:space:]]}"}"
+          [[ "$health_url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[^[:space:]]*)?$ ]]
+
           curl --fail --silent --show-error \
             --retry 12 \
             --retry-delay 5 \
             --retry-all-errors \
             --connect-timeout 10 \
             --max-time 20 \
-            "$APP_HEALTH_URL"
+            "$health_url"
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
