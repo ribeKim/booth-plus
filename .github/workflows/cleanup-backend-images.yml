@@ -1,0 +1,39 @@
+name: Cleanup backend images
+
+on:
+  schedule:
+    - cron: "23 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report deletions without changing GHCR
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: booth-plus-backend-image-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply GHCR retention policy
+        uses: actions/github-script@v7
+        env:
+          PACKAGE_NAME: booth-plus-backend
+          KEEP_BUILDS: "10"
+          MIN_AGE_DAYS: "30"
+          RELATED_WINDOW_MINUTES: "15"
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        with:
+          script: |
+            const cleanup = require('./.github/scripts/cleanup-ghcr.cjs');
+            await cleanup({ github, context, core });

@@ -41,7 +41,6 @@
     },
     {
       "action": "check",
-      "checkPeriod": "1h",
       "src": ["autogroup:admin"],
       "dst": ["tag:booth-plus-dev", "tag:booth-plus-prod"],
       "users": ["deploy"],

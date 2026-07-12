@@ -133,6 +133,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
@@ -215,3 +216,19 @@ jobs:
             --connect-timeout 10 \
             --max-time 20 \
             "$APP_HEALTH_URL"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mark deployed image
+        shell: bash
+        env:
+          IMAGE_REF: ${{ needs.publish.outputs.image_ref }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:${GITHUB_REF_NAME}" \
+            "$IMAGE_REF"

@@ -42,6 +42,11 @@ chmod 600 deploy/oci/.env
 
 Set `ACME_EMAIL`, `CORS_ORIGINS`, and the other non-secret values. CI exports the immutable `BACKEND_IMAGE` digest during deployment, so the example image value is only a local fallback.
 
+Published images also receive a moving `dev` or `prod` tag. The weekly
+`cleanup-backend-images.yml` workflow preserves those deployed images, the 10
+most recent builds, and their nearby multi-platform manifests. It deletes only
+remaining package versions older than 30 days. Manual runs default to dry-run.
+
 Generate one strong database password outside the repository:
 
 ```sh
