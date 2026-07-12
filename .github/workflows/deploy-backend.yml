@@ -176,12 +176,19 @@ jobs:
 
           [[ "$OCI_DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]]
 
+          ssh_options=(
+            -o BatchMode=yes
+            -o ConnectTimeout=15
+            -o StrictHostKeyChecking=accept-new
+            -o "UserKnownHostsFile=$RUNNER_TEMP/tailscale_known_hosts"
+          )
+
           git archive --format=tar HEAD | \
-            ssh -o BatchMode=yes -o ConnectTimeout=15 \
+            ssh "${ssh_options[@]}" \
               "$OCI_SSH_USER@$OCI_TAILSCALE_HOST" \
               "mkdir -p '$OCI_DEPLOY_PATH' && tar -xf - -C '$OCI_DEPLOY_PATH'"
 
-          ssh -o BatchMode=yes -o ConnectTimeout=15 \
+          ssh "${ssh_options[@]}" \
             "$OCI_SSH_USER@$OCI_TAILSCALE_HOST" \
             "bash -s -- '$IMAGE_REF' '$OCI_DEPLOY_PATH'" <<'REMOTE'
           set -euo pipefail

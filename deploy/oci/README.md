@@ -166,7 +166,7 @@ The current dev health URL is:
 APP_HEALTH_URL=https://booth-plus.ribe.moe/api/health/storage
 ```
 
-No `OCI_SSH_PRIVATE_KEY`, `known_hosts`, or GitHub deploy key is used. The workflow streams the triggering commit's tracked files with `git archive` over Tailscale SSH, while the ignored `deploy/oci/.env` and `/etc/booth-plus` secrets remain on the VM. On each target VM, create the local deployment user, give it access to the deployment directory and Docker, tag the VM appropriately, and enable Tailscale SSH:
+No `OCI_SSH_PRIVATE_KEY`, persistent `known_hosts`, or GitHub deploy key is used. The ephemeral runner accepts the Tailscale peer's SSH host key on first connection into `$RUNNER_TEMP/tailscale_known_hosts` and reuses it for the remainder of that job. The workflow streams the triggering commit's tracked files with `git archive` over Tailscale SSH, while the ignored `deploy/oci/.env` and `/etc/booth-plus` secrets remain on the VM. On each target VM, create the local deployment user, give it access to the deployment directory and Docker, tag the VM appropriately, and enable Tailscale SSH:
 
 ```sh
 sudo useradd --create-home --shell /bin/bash deploy
